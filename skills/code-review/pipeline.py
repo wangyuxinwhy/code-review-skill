@@ -1074,14 +1074,18 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
     new_targets.sort(key=target_sort_key)
     summary = _count_checks(all_entries, symbols_reviewed)
 
+    # Prune orphaned hashes — only keep entries that matched current files
+    live_files = {h: v for h, v in files_cache.items() if h in matched_file_hashes}
+    live_symbols = {h: v for h, v in symbols_cache.items() if h in matched_symbol_hashes}
+
     refreshed = CacheFile(
         version="3",
         timestamp=datetime.now(UTC).isoformat(),
         checklist_version=data.get("checklist_version", "unknown"),
         summary=summary,
         targets=new_targets,
-        files=files_cache,
-        symbols=symbols_cache,
+        files=live_files,
+        symbols=live_symbols,
     )
     cache_path.write_text(json.dumps(refreshed, indent=2, ensure_ascii=False) + "\n")
 
