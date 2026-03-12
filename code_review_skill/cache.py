@@ -241,7 +241,6 @@ def _restore_symbol_target(file_str: str, symbol_def: SymbolDef, cache_checks: C
 
 
 def _build_files_cache(staging_files: Iterable[StagingEntry]) -> dict[str, CacheChecks]:
-    """Only processes entries with stage='file'; skips others."""
     files_cache: dict[str, CacheChecks] = {}
     for staging in staging_files:
         if staging.get("stage") != "file":
@@ -419,6 +418,17 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
         )
 
     # Slow path: full rescan
+    return _rescan_files(data, cache_path, root, files_cache, symbols_cache, targets_before)
+
+
+def _rescan_files(
+    data: CacheFile,
+    cache_path: Path,
+    root: Path,
+    files_cache: dict[str, CacheChecks],
+    symbols_cache: dict[str, CacheChecks],
+    targets_before: int,
+) -> RefreshStats:
     new_targets: list[TargetEntry] = [
         entry for entry in data.get("targets", []) if entry["target"]["type"] == "changeset"
     ]

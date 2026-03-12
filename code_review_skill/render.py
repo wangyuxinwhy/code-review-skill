@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-from code_review_skill.cache import refresh
 from code_review_skill.types import CacheFile, ReviewSummary
 
 
@@ -48,19 +47,15 @@ def _annotate_source(
     return "\n".join(out)
 
 
-def show(cache_path: Path, root: Path | None = None) -> str:
+def show(cache_path: Path) -> str:
     """Render actionable findings as annotated source for curator review.
 
-    Auto-refreshes the cache before rendering to ensure file paths and line
-    numbers are current. Reads cache.json, filters to failed/blocked checks,
-    reads source files, and produces a diagnostic report with inline annotations.
+    Reads cache.json, filters to failed/blocked checks, reads source files,
+    and produces a diagnostic report with inline annotations.
+    Caller is responsible for refreshing the cache beforehand if needed.
     """
     if not cache_path.exists():
         raise FileNotFoundError(f"Cache file not found: {cache_path}")
-
-    # Auto-refresh: heal stale paths/line numbers before rendering
-    resolved_root = (root or Path(".")).resolve()
-    refresh(cache_path, resolved_root)
 
     data: CacheFile = json.loads(cache_path.read_text())
     if data.get("version") != "3":

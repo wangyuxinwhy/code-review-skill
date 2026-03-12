@@ -240,6 +240,7 @@ def main() -> None:
             print(f"  Cache: {len(cache_data['files'])} file(s), {len(cache_data['symbols'])} symbol(s)")
         case "show":
             try:
+                refresh(cache_path=args.cache, root=Path.cwd())
                 report = show(cache_path=args.cache)
             except (FileNotFoundError, ValueError) as exc:
                 print(str(exc), file=sys.stderr)
@@ -277,7 +278,6 @@ def main() -> None:
 
 
 def _cmd_init() -> None:
-    """Initialize project with checklist and .code-review/ directory."""
     checklist_dest = Path(".code-review-checklist.yaml")
     code_review_dir = Path(".code-review")
     staging_dir = code_review_dir / "staging"

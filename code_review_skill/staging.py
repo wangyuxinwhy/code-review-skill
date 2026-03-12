@@ -4,7 +4,7 @@ import json
 from collections.abc import Iterable, Mapping
 from importlib.resources import files as pkg_files
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import yaml
 
@@ -195,7 +195,10 @@ def merge_staging(
     staging_files: Iterable[StagingEntry],
     checklist_items: Mapping[str, ChecklistItem] | None = None,
 ) -> MergeResult:
-    """Counts include all-pass symbols that are filtered out of the returned targets."""
+    """Merge staging files into sorted targets, enriching checks from checklist.
+
+    All-pass symbols are counted but excluded from the returned targets.
+    """
     checklist_lookup = checklist_items or {}
     all_entries: list[TargetEntry] = []
     filtered_targets: list[TargetEntry] = []
@@ -246,15 +249,10 @@ def _count_checks(entries: Iterable[TargetEntry], symbols_reviewed: int) -> Revi
 
     for entry in entries:
         for check in entry["checks"]:
-            pass_value = check.get("pass")
-            status: Literal["passed", "failed", "blocked"] | None = check.get("status")
+            status = check.get("status")
             if status is None:
-                if pass_value is True:
-                    status = "passed"
-                elif pass_value is False:
-                    status = "failed"
-                else:
-                    status = "blocked"
+                pass_value = check.get("pass")
+                status = "passed" if pass_value is True else "failed" if pass_value is False else "blocked"
             level = check.get("level", "advisory")
 
             match (status, level):
