@@ -1,15 +1,38 @@
 {
   "version": "3",
-  "timestamp": "2026-03-12T05:51:36.160744+00:00",
+  "timestamp": "2026-03-12T07:19:19.723615+00:00",
   "checklist_version": "2",
   "summary": {
-    "blocking_failures": 2,
-    "advisory_failures": 29,
-    "passed": 236,
+    "blocking_failures": 0,
+    "advisory_failures": 9,
+    "passed": 329,
     "blocked": 0,
-    "symbols_reviewed": 44
+    "symbols_reviewed": 54
   },
   "targets": [
+    {
+      "target": {
+        "type": "changeset"
+      },
+      "checks": [
+        {
+          "id": "dependency-direction",
+          "pass": true,
+          "category": "design",
+          "level": "blocking",
+          "description": "No dependency direction violations",
+          "status": "passed"
+        },
+        {
+          "id": "naming-consistency",
+          "pass": true,
+          "category": "readability",
+          "level": "advisory",
+          "description": "Same concept uses the same name across the changeset",
+          "status": "passed"
+        }
+      ]
+    },
     {
       "target": {
         "type": "file",
@@ -36,12 +59,36 @@
     },
     {
       "target": {
+        "type": "file",
+        "file": "skills/code-review/tests/test_pipeline.py"
+      },
+      "checks": [
+        {
+          "id": "module-cohesion",
+          "pass": true,
+          "category": "design",
+          "level": "advisory",
+          "description": "Module has a focused, cohesive responsibility",
+          "status": "passed"
+        },
+        {
+          "id": "file-naming",
+          "pass": true,
+          "category": "readability",
+          "level": "advisory",
+          "description": "Filename accurately reflects the module's actual responsibility",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "target": {
         "type": "symbol",
         "file": "skills/code-review/pipeline.py",
-        "symbol": "CacheChecks",
+        "symbol": "StagingEntry",
         "lines": [
-          210,
-          211
+          178,
+          185
         ]
       },
       "checks": [
@@ -56,17 +103,34 @@
         {
           "id": "type-annotations",
           "pass": false,
-          "note": "The `checks` field is typed as `list[dict[str, Any]]` but represents a list of check results with a known schema (id, pass, annotations, etc.). The codebase already defines `CheckResult` as a TypedDict for this shape. Using `list[CheckResult]` would make the type annotation more precise and self-documenting.",
+          "note": "Three fields use `list[dict[str, Any]]` when more specific TypedDicts are already defined in the same file. `checks` should be `list[CheckResult]`; `targets` should be `list[dict[str, Any]]` narrowed to `list[TargetEntry]` or a dedicated TypedDict; `symbols` similarly. Using `Any`-keyed dicts here defeats the purpose of the surrounding type system.",
           "annotations": [
             {
-              "offset": 1,
-              "message": "Consider `list[CheckResult]` instead of `list[dict[str, Any]]` — the schema is known and already modeled by CheckResult."
+              "offset": 4,
+              "message": "`list[dict[str, Any]]` — should be `list[CheckResult]`; `CheckResult` TypedDict is defined in the same file"
+            },
+            {
+              "offset": 6,
+              "message": "`list[dict[str, Any]]` — should be `list[TargetEntry]` or a dedicated TypedDict if shape differs"
+            },
+            {
+              "offset": 7,
+              "message": "`list[dict[str, Any]]` — should be `list[TargetEntry]` or a dedicated TypedDict if shape differs"
             }
           ],
           "category": "correctness",
           "level": "advisory",
           "description": "Type annotations are complete, modern, and accurately reflect design intent",
           "status": "failed"
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true,
+          "note": "Docstring 'A single staging file’s content. Fields vary by stage type.' adds meaningful context not captured by the class name alone — explains the `total=False` choice.",
+          "category": "readability",
+          "level": "advisory",
+          "description": "Docstrings add information beyond the function name and signature",
+          "status": "passed"
         },
         {
           "id": "idiomatic-constructs",
@@ -92,8 +156,8 @@
         "file": "skills/code-review/pipeline.py",
         "symbol": "CheckOutput",
         "lines": [
-          224,
-          229
+          243,
+          248
         ]
       },
       "checks": [
@@ -104,81 +168,6 @@
           "level": "blocking",
           "description": "Functions and classes have single, cohesive responsibility",
           "status": "passed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "The `stats` field is typed as `dict[str, int]` but has a fixed schema with known keys (file_hit, file_miss, symbol_hit, symbol_miss) as seen at lines 637-642. A TypedDict would make the expected keys explicit and catch key typos at type-check time.",
-          "annotations": [
-            {
-              "offset": 5,
-              "message": "Consider a TypedDict for `stats` — the keys (file_hit, file_miss, symbol_hit, symbol_miss) are fixed and known."
-            }
-          ],
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "failed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "passed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "load_staging_files",
-        "lines": [
-          269,
-          271
-        ]
-      },
-      "checks": [
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "passed"
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "Returns list[dict[str, Any]] but staging files have a known recurring schema with 'stage', 'target', and 'checks' keys. A StagingEntry TypedDict (or discriminated union of per-stage TypedDicts) would document the expected shape and catch key typos at type-check time.",
-          "annotations": [
-            {
-              "offset": 0,
-              "message": "Return type list[dict[str, Any]] loses the known staging file schema; consider a StagingEntry TypedDict or union type."
-            }
-          ],
-          "category": "design",
-          "level": "advisory",
-          "description": "Structured data uses domain types, not raw primitives",
-          "status": "failed"
         },
         {
           "id": "type-annotations",
@@ -198,391 +187,16 @@
         },
         {
           "id": "naming-clarity",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "passed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "enrich_check",
-        "lines": [
-          277,
-          295
-        ]
-      },
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Data structure matches the operations performed on it",
-          "status": "passed"
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
           "pass": false,
-          "note": "checklist_items parameter accepts dict[str, ChecklistItem] but only calls .get(), so Mapping[str, ChecklistItem] would be the minimal abstract type.",
-          "annotations": [
-            {
-              "offset": 0,
-              "message": "checklist_items: dict[str, ChecklistItem] -> Mapping[str, ChecklistItem]; only .get() is used"
-            }
-          ],
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "failed"
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Structured data uses domain types, not raw primitives",
-          "status": "passed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": true,
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "passed"
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "passed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "passed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "_extract_symbol_entries",
-        "lines": [
-          326,
-          338
-        ]
-      },
-      "checks": [
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "passed"
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Structured data uses domain types, not raw primitives",
-          "status": "passed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": true,
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "passed"
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "passed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": false,
-          "note": "The series of if/elif checks on key presence is structural dispatch over format variants. A match/case with mapping patterns (e.g., case {\"targets\": targets}, case {\"target\": target}) would express the structural intent more directly.",
-          "annotations": [
-            {
-              "offset": 6,
-              "message": "Structural dispatch on dict keys — match/case with mapping patterns (case {\"targets\": t}, case {\"target\": t}) would express the format-variant intent more directly"
-            }
-          ],
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "failed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "passed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "_convert_annotations_to_offsets",
-        "lines": [
-          356,
-          373
-        ]
-      },
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Data structure matches the operations performed on it",
-          "status": "passed"
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "passed"
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "The function signature uses `dict[str, Any]` for both the input and output check objects, and produces annotation dicts with `{\"offset\": int, \"message\": str}` inline. The codebase already defines `Annotation` (L152) with an `offset` field and `CheckResult` (L158). Using these domain types would make the function's contract self-documenting.",
+          "note": "`cached` and `review` are asymmetric with `cached_symbols` and `review_symbols`. The bare names suggest scalar values or unrelated concepts; naming them `cached_files` and `review_files` would make the parallel with the `_symbols` fields explicit and self-documenting.",
           "annotations": [
             {
               "offset": 1,
-              "message": "Parameter `checks` uses `Iterable[dict[str, Any]]` — the `CheckResult` TypedDict already models this data shape."
-            },
-            {
-              "offset": 13,
-              "message": "Inline dict `{\"offset\": ..., \"message\": ...}` matches the `Annotation` TypedDict defined at L152 — use it for type safety."
-            }
-          ],
-          "category": "design",
-          "level": "advisory",
-          "description": "Structured data uses domain types, not raw primitives",
-          "status": "failed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "Parameter and return types use raw `dict[str, Any]` instead of the `CheckResult` and `Annotation` TypedDicts already defined in this module. The signature `Iterable[dict[str, Any]]` obscures that these dicts have a known schema with 'id', 'pass', 'annotations' keys. Using the domain types would make the contract explicit.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "`checks: Iterable[dict[str, Any]]` should be `Iterable[CheckResult]` — the CheckResult TypedDict is defined at L158 and matches this data shape."
+              "message": "`cached: list[str]` — rename to `cached_files` to match the parallel field `cached_symbols`"
             },
             {
               "offset": 2,
-              "message": "Return type `list[dict[str, Any]]` should be `list[CheckResult]` to reflect the actual structure being returned."
-            }
-          ],
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "failed"
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The first line of the docstring ('Convert annotation absolute line numbers to offsets relative to base_line') restates what the function name already communicates. However, the second paragraph explaining file vs symbol base_line semantics adds genuine value. Consider trimming the first sentence or merging it into the explanation.",
-          "annotations": [
-            {
-              "offset": 3,
-              "message": "First sentence paraphrases the function name `_convert_annotations_to_offsets`. The base_line explanation below it is the valuable part."
-            }
-          ],
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "failed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": false,
-          "note": "The variable `ann` is a truncation of `annotation`, not a recognized abbreviation. Within the list comprehension it should be spelled out for clarity.",
-          "annotations": [
-            {
-              "offset": 13,
-              "message": "`ann` should be `annotation` — it is an ad-hoc truncation, not a recognized short form."
-            }
-          ],
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "failed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "_convert_offsets_to_lines",
-        "lines": [
-          376,
-          392
-        ]
-      },
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Data structure matches the operations performed on it",
-          "status": "passed"
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "passed"
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "Mirror image of `_convert_annotations_to_offsets`: the function uses `dict[str, Any]` for checks and constructs annotation dicts inline as `{\"line\": int, \"message\": str}`. The codebase defines `Annotation` (L152) and `CheckResult` (L158) which model exactly these shapes.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "Parameter `checks` uses `Iterable[dict[str, Any]]` — the `CheckResult` TypedDict already models this data shape."
-            },
-            {
-              "offset": 12,
-              "message": "Inline dict `{\"line\": ..., \"message\": ...}` could use a structured type for the annotation output, though note the current `Annotation` TypedDict uses `offset` not `line` — a second TypedDict or union may be needed."
-            }
-          ],
-          "category": "design",
-          "level": "advisory",
-          "description": "Structured data uses domain types, not raw primitives",
-          "status": "failed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "Same issue as its inverse function: parameter and return types use raw `dict[str, Any]` instead of the `CheckResult` and `Annotation` TypedDicts already defined in this module. The signature hides the known schema.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "`checks: Iterable[dict[str, Any]]` should be `Iterable[CheckResult]` — the CheckResult TypedDict is defined at L158 and matches this data shape."
-            },
-            {
-              "offset": 2,
-              "message": "Return type `list[dict[str, Any]]` should be `list[CheckResult]` to reflect the actual structure being returned."
-            }
-          ],
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "failed"
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The docstring ('Convert annotation offsets back to absolute line numbers. Inverse of _convert_annotations_to_offsets.') restates the function name and adds only a cross-reference. The cross-reference is mildly useful but the first sentence is pure paraphrase of the name.",
-          "annotations": [
-            {
-              "offset": 3,
-              "message": "First sentence paraphrases the function name. Consider replacing with a note about when/why this conversion is needed (e.g., 'Used when restoring cached checks to staging format')."
-            }
-          ],
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "failed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": false,
-          "note": "The variable `ann` is a truncation of `annotation`, not a recognized abbreviation. Should be spelled out in the list comprehension.",
-          "annotations": [
-            {
-              "offset": 12,
-              "message": "`ann` should be `annotation` — it is an ad-hoc truncation, not a recognized short form."
+              "message": "`review: list[str]` — rename to `review_files` to match the parallel field `review_symbols`"
             }
           ],
           "category": "readability",
@@ -598,8 +212,8 @@
         "file": "skills/code-review/pipeline.py",
         "symbol": "merge_staging",
         "lines": [
-          398,
-          436
+          416,
+          453
         ]
       },
       "checks": [
@@ -621,109 +235,18 @@
         },
         {
           "id": "parameter-breadth",
-          "pass": true,
+          "pass": false,
+          "note": "`checklist_items: dict[str, ChecklistItem] | None` accepts a mutable concrete dict, but the body only passes it to `enrich_check` which reads via `Mapping`-compatible access. Narrowing to `Mapping[str, ChecklistItem] | None` expresses the true dependency.",
+          "annotations": [
+            {
+              "offset": 2,
+              "message": "Accept `Mapping[str, ChecklistItem] | None` — only key-based reads are performed"
+            }
+          ],
           "category": "design",
           "level": "advisory",
           "description": "Parameters accept the minimal type needed",
-          "status": "passed"
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "The `staging_files` parameter accepts `Iterable[dict[str, Any]]` but each staging dict has a known, repeating schema with `stage`, `target`, `checks`, and optional `file` keys. A `StagingEntry` TypedDict already could be defined to document this shape, making the contract explicit rather than requiring callers and readers to know the implicit dict structure.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "staging_files: Iterable[dict[str, Any]] -- each dict has a known schema (stage, target, checks, file); consider defining a StagingEntry TypedDict"
-            }
-          ],
-          "category": "design",
-          "level": "advisory",
-          "description": "Structured data uses domain types, not raw primitives",
           "status": "failed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": true,
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "passed"
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The docstring 'Summary counts checks from all symbols, including those filtered out of targets as all-pass' describes an implementation detail about counting behavior but is misleadingly phrased as a sentence fragment starting with 'Summary'. It does not clearly explain the function's purpose (merging staging files into a unified MergeResult). The useful information about counting all-pass symbols could be a code comment instead.",
-          "annotations": [
-            {
-              "offset": 4,
-              "message": "Docstring is a confusing fragment; it describes a side-detail (summary counting) rather than the function's main purpose (merge staging entries, enrich checks, filter all-pass symbols, and return a MergeResult)"
-            }
-          ],
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "failed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": false,
-          "note": "The variable `items` (line 404) is a generic name that shadows the meaning of `checklist_items`. In a function that also processes staging 'items' and 'entries', this name is ambiguous. A more descriptive name like `checklist_map` or `checklist_lookup` would clarify its role as a lookup dictionary.",
-          "annotations": [
-            {
-              "offset": 6,
-              "message": "items = checklist_items or {} -- 'items' is generic and ambiguous in a function that handles multiple kinds of items; prefer 'checklist_map' or 'checklist_lookup'"
-            }
-          ],
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "failed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "_count_checks",
-        "lines": [
-          439,
-          478
-        ]
-      },
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Data structure matches the operations performed on it",
-          "status": "passed"
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "passed"
         },
         {
           "id": "no-primitive-obsession",
@@ -735,11 +258,18 @@
         },
         {
           "id": "type-annotations",
-          "pass": true,
+          "pass": false,
+          "note": "`checklist_items` is typed as `dict[str, ChecklistItem] | None` but the function only reads from it (passes to `enrich_check`). The parameter should be `Mapping[str, ChecklistItem] | None` to accept the minimal read-only interface.",
+          "annotations": [
+            {
+              "offset": 2,
+              "message": "Use `Mapping[str, ChecklistItem] | None` — function only reads, never mutates this dict"
+            }
+          ],
           "category": "correctness",
           "level": "advisory",
           "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "passed"
+          "status": "failed"
         },
         {
           "id": "redundant-docstrings",
@@ -752,11 +282,11 @@
         {
           "id": "idiomatic-constructs",
           "pass": false,
-          "note": "The function uses a chain of if/elif checks on `pass_value` and then `status` to dispatch counting logic, but lines 461-470 already use a match statement for the `status` field. The earlier dispatch on `pass_value` (lines 449-454) could also be folded into the match block for consistency, using a single match on `(pass_value, status)` or restructuring so that status is always resolved first and the match handles all branches uniformly.",
+          "note": "The `if stage in (...): ... elif stage == ...:` block dispatches on string literal values. A `match stage:` with `case \"changeset\" | \"file\":` and `case \"symbol\":` expresses the dispatch intent more directly and aligns with the `match`-based style used elsewhere in the file (e.g., `_extract_symbol_entries`, `target_sort_key`).",
           "annotations": [
             {
-              "offset": 10,
-              "message": "The early-return branches for pass_value is True and pass_value is None could be folded into the match statement at line 461 for a single, uniform dispatch structure"
+              "offset": 13,
+              "message": "Replace if/elif stage dispatch with `match stage:` — intent is structural dispatch on a string literal"
             }
           ],
           "category": "readability",
@@ -780,8 +310,8 @@
         "file": "skills/code-review/pipeline.py",
         "symbol": "_SymbolCacheResult",
         "lines": [
-          507,
-          512
+          520,
+          525
         ]
       },
       "checks": [
@@ -795,88 +325,6 @@
         },
         {
           "id": "type-annotations",
-          "pass": false,
-          "note": "The `symbol_targets` field is typed as `list[dict[str, Any]]` but each entry has a known shape with `target` and `checks` keys (produced by `_restore_symbol_target` at line 588). This matches the structure that `TargetEntry` or a similar TypedDict already describes.",
-          "annotations": [
-            {
-              "offset": 3,
-              "message": "Consider a more specific type than `list[dict[str, Any]]` for `symbol_targets` — entries have a known `target`/`checks` structure."
-            }
-          ],
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "failed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "passed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "_check_symbol_cache",
-        "lines": [
-          547,
-          598
-        ]
-      },
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Data structure matches the operations performed on it",
-          "status": "passed"
-        },
-        {
-          "id": "single-responsibility",
-          "pass": false,
-          "note": "The is_review_file boolean flag creates two behavioral modes in a 52-line function: when True, missed symbols are tracked in review_syms; when False, they are silently dropped. This flag-driven branching indicates the function handles two distinct use cases (checking cached files vs. review files) that should be separated or the shared logic extracted.",
-          "annotations": [
-            {
-              "offset": 4,
-              "message": "Boolean flag parameter creates two behavioral modes in the same function. Consider splitting into two functions or extracting the shared iteration logic."
-            }
-          ],
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "failed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": false,
-          "note": "file_list is typed as list[str] but the function only iterates over it. Use Iterable[str] or Sequence[str] to accept the minimal type needed.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "file_list: list[str] is only iterated — use Sequence[str] or Iterable[str]."
-            }
-          ],
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "failed"
-        },
-        {
-          "id": "type-annotations",
           "pass": true,
           "category": "correctness",
           "level": "advisory",
@@ -884,376 +332,8 @@
           "status": "passed"
         },
         {
-          "id": "redundant-docstrings",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "passed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "passed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "check",
-        "lines": [
-          601,
-          643
-        ]
-      },
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Data structure matches the operations performed on it",
-          "status": "passed"
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "passed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": true,
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "passed"
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "passed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
           "id": "naming-clarity",
           "pass": false,
-          "note": "Variables sym_cached and sym_review use the ad-hoc truncation 'sym' for 'symbol'. Per naming conventions, project-specific words should be spelled out.",
-          "annotations": [
-            {
-              "offset": 16,
-              "message": "sym_cached -> symbol_cached: 'sym' is an ad-hoc truncation of 'symbol'."
-            },
-            {
-              "offset": 17,
-              "message": "sym_review -> symbol_review: 'sym' is an ad-hoc truncation of 'symbol'."
-            }
-          ],
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "failed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "_restore_symbol_target",
-        "lines": [
-          659,
-          674
-        ]
-      },
-      "checks": [
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "passed"
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "Returns dict[str, Any] when the codebase already defines TargetEntry TypedDict with the exact same shape (target + checks). Using the existing structured type would make the contract explicit.",
-          "annotations": [
-            {
-              "offset": 2,
-              "message": "Return type should use the existing TargetEntry TypedDict instead of dict[str, Any]."
-            }
-          ],
-          "category": "design",
-          "level": "advisory",
-          "description": "Structured data uses domain types, not raw primitives",
-          "status": "failed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "Return type is dict[str, Any] but the returned dict has a known, fixed shape matching the existing TargetEntry TypedDict (keys: 'target' and 'checks'). The return type should be TargetEntry to express the actual data shape.",
-          "annotations": [
-            {
-              "offset": 2,
-              "message": "Return type dict[str, Any] should be TargetEntry — the returned dict always has 'target' (SymbolTarget) and 'checks' (list) keys matching the existing TypedDict."
-            }
-          ],
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "failed"
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "passed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "passed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "_build_files_cache",
-        "lines": [
-          680,
-          693
-        ]
-      },
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Data structure matches the operations performed on it",
-          "status": "passed"
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "passed"
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "The parameter `staging_files` is typed as `Iterable[dict[str, Any]]` but each dict has a known, repeating schema with 'stage', 'target', and 'checks' keys. A TypedDict (e.g., StagingEntry) would document the expected structure.",
-          "annotations": [
-            {
-              "offset": 0,
-              "message": "staging_files: Iterable[dict[str, Any]] — these dicts have a known schema (stage, target, checks); consider a TypedDict."
-            }
-          ],
-          "category": "design",
-          "level": "advisory",
-          "description": "Structured data uses domain types, not raw primitives",
-          "status": "failed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": true,
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "passed"
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The docstring 'Build the files cache section: content hash -> checks with offsets.' largely restates the function name and return type. The 'content hash -> checks with offsets' part is marginally useful but mostly duplicates what the return type `dict[str, CacheChecks]` already conveys.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "Docstring restates the function name; consider removing or adding non-obvious detail (e.g., why only 'file' stage entries are included)."
-            }
-          ],
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "failed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Names are self-documenting",
-          "status": "passed"
-        }
-      ]
-    },
-    {
-      "target": {
-        "type": "symbol",
-        "file": "skills/code-review/pipeline.py",
-        "symbol": "_build_symbols_cache",
-        "lines": [
-          696,
-          721
-        ]
-      },
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Data structure matches the operations performed on it",
-          "status": "passed"
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true,
-          "category": "design",
-          "level": "blocking",
-          "description": "Functions and classes have single, cohesive responsibility",
-          "status": "passed"
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true,
-          "category": "design",
-          "level": "advisory",
-          "description": "Parameters accept the minimal type needed",
-          "status": "passed"
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "Same as _build_files_cache: `staging_files` is `Iterable[dict[str, Any]]` but each dict follows a known schema with 'stage', 'target', and 'checks' keys. A TypedDict would make the expected shape explicit.",
-          "annotations": [
-            {
-              "offset": 0,
-              "message": "staging_files: Iterable[dict[str, Any]] — known schema; consider a TypedDict like StagingEntry."
-            }
-          ],
-          "category": "design",
-          "level": "advisory",
-          "description": "Structured data uses domain types, not raw primitives",
-          "status": "failed"
-        },
-        {
-          "id": "type-annotations",
-          "pass": true,
-          "category": "correctness",
-          "level": "advisory",
-          "description": "Type annotations are complete, modern, and accurately reflect design intent",
-          "status": "passed"
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The docstring 'Build the symbols cache section: content hash -> checks with offsets.' restates the function name and return type with no additional information.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "Docstring paraphrases the function name; consider removing or documenting non-obvious behavior (e.g., how grouped vs per-symbol formats are handled, or why IndexError/ValueError are silently skipped)."
-            }
-          ],
-          "category": "readability",
-          "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
-          "status": "failed"
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true,
-          "category": "readability",
-          "level": "advisory",
-          "description": "Code uses the language construct that best expresses intent",
-          "status": "passed"
-        },
-        {
-          "id": "naming-clarity",
-          "pass": false,
-          "note": "The variable `raw_targets` on line 702 is misleading — it holds symbol entries (each with target and checks), not raw target descriptors. The name suggests unprocessed TargetDescriptors.",
-          "annotations": [
-            {
-              "offset": 6,
-              "message": "raw_targets is misleading; these are symbol entries (with target+checks), not raw targets. Consider `symbol_entries` to match the loop variable."
-            }
-          ],
           "category": "readability",
           "level": "advisory",
           "description": "Names are self-documenting",
@@ -1267,8 +347,8 @@
         "file": "skills/code-review/pipeline.py",
         "symbol": "build",
         "lines": [
-          724,
-          781
+          733,
+          780
         ]
       },
       "checks": [
@@ -1282,26 +362,11 @@
         },
         {
           "id": "single-responsibility",
-          "pass": false,
-          "note": "The function mixes orchestration logic (loading files, merging staging, building caches, assembling the CacheFile) with I/O side effects: it writes the cache file to disk (line 769), prints summary output to stdout (lines 771-779), and calls sys.exit(1) on empty staging (line 733). The exit-on-error and file-writing should be separated from the pure data assembly so the function can be used programmatically without side effects.",
-          "annotations": [
-            {
-              "offset": 9,
-              "message": "sys.exit(1) here makes the function unusable as a library call; raise an exception instead and let the CLI handle exit."
-            },
-            {
-              "offset": 45,
-              "message": "Writing the cache file to disk is a side effect that couples this function to the filesystem. Consider returning the CacheFile and letting the caller write it."
-            },
-            {
-              "offset": 47,
-              "message": "Printing summary to stdout mixes presentation with logic. Consider returning the summary and letting the CLI format output."
-            }
-          ],
+          "pass": true,
           "category": "design",
           "level": "blocking",
           "description": "Functions and classes have single, cohesive responsibility",
-          "status": "failed"
+          "status": "passed"
         },
         {
           "id": "parameter-breadth",
@@ -1329,18 +394,140 @@
         },
         {
           "id": "redundant-docstrings",
+          "pass": true,
+          "category": "readability",
+          "level": "advisory",
+          "description": "Docstrings add information beyond the function name and signature",
+          "status": "passed"
+        },
+        {
+          "id": "idiomatic-constructs",
           "pass": false,
-          "note": "The docstring 'Merge staging files and build combined cache.json v3.' restates the function name ('build') and could be inferred from the signature. It adds only the version number 'v3' which is already visible in the function body (version=\"3\").",
+          "category": "readability",
+          "level": "advisory",
+          "description": "Code uses the language construct that best expresses intent",
+          "status": "failed"
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true,
+          "category": "readability",
+          "level": "advisory",
+          "description": "Names are self-documenting",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "show",
+        "lines": [
+          830,
+          908
+        ]
+      },
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true,
+          "category": "design",
+          "level": "advisory",
+          "description": "Data structure matches the operations performed on it",
+          "status": "passed"
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true,
+          "category": "design",
+          "level": "blocking",
+          "description": "Functions and classes have single, cohesive responsibility",
+          "status": "passed"
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true,
+          "category": "design",
+          "level": "advisory",
+          "description": "Parameters accept the minimal type needed",
+          "status": "passed"
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true,
+          "category": "design",
+          "level": "advisory",
+          "description": "Structured data uses domain types, not raw primitives",
+          "status": "passed"
+        },
+        {
+          "id": "type-annotations",
+          "pass": true,
+          "category": "correctness",
+          "level": "advisory",
+          "description": "Type annotations are complete, modern, and accurately reflect design intent",
+          "status": "passed"
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true,
+          "category": "readability",
+          "level": "advisory",
+          "description": "Docstrings add information beyond the function name and signature",
+          "status": "passed"
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": false,
+          "note": "Lines 866-877 dispatch on `target_type` string values using `if/elif/else`. The semantic intent is value-based dispatch over a closed set of string literals (`\"symbol\"`, `\"file\"`, and a default). A `match target_type:` statement with `case \"symbol\":`, `case \"file\":`, and `case _:` expresses this dispatch intent more directly.",
           "annotations": [
             {
-              "offset": 5,
-              "message": "Docstring restates the function name; consider removing or documenting the merge strategy, error conditions, or output format."
+              "offset": 36,
+              "message": "if/elif/else on target_type — use match target_type:"
             }
           ],
           "category": "readability",
           "level": "advisory",
-          "description": "Docstrings add information beyond the function name and signature",
+          "description": "Code uses the language construct that best expresses intent",
           "status": "failed"
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true,
+          "category": "readability",
+          "level": "advisory",
+          "description": "Names are self-documenting",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "RefreshStats",
+        "lines": [
+          914,
+          922
+        ]
+      },
+      "checks": [
+        {
+          "id": "single-responsibility",
+          "pass": true,
+          "category": "design",
+          "level": "blocking",
+          "description": "Functions and classes have single, cohesive responsibility",
+          "status": "passed"
+        },
+        {
+          "id": "type-annotations",
+          "pass": true,
+          "category": "correctness",
+          "level": "advisory",
+          "description": "Type annotations are complete, modern, and accurately reflect design intent",
+          "status": "passed"
         },
         {
           "id": "idiomatic-constructs",
@@ -1353,11 +540,15 @@
         {
           "id": "naming-clarity",
           "pass": false,
-          "note": "The loop variable `entry` on line 740 is generic. In a function with multiple data structures (staging_files, targets, checks), a more specific name like `target_entry` or `target_result` would improve clarity.",
+          "note": "`file_hits` and `symbol_hits` use plural forms, while the sibling `CacheStats` TypedDict uses singular forms (`file_hit`, `symbol_hit`, `file_miss`, `symbol_miss`). Within `RefreshStats` itself the names are internally consistent, but the divergence from `CacheStats`'s convention (singular counter names) creates a terminology split for the same concept across the same file.",
           "annotations": [
             {
-              "offset": 16,
-              "message": "entry is generic; consider target_entry to distinguish from other iterables in scope."
+              "offset": 3,
+              "message": "`file_hits` — uses plural; `CacheStats.file_hit` uses singular for the same counter concept"
+            },
+            {
+              "offset": 4,
+              "message": "`symbol_hits` — uses plural; `CacheStats.symbol_hit` uses singular for the same counter concept"
             }
           ],
           "category": "readability",
@@ -1369,7 +560,19 @@
     }
   ],
   "files": {
-    "sha256:57623c9d0966a8541d502f07b26fc963cccd7f378a4689bbe3fb22a82dbd403b": {
+    "sha256:d7cf8d2f0d2a515ae18d868c304116614a244813ec3fe077ea86773bcb28dc13": {
+      "checks": [
+        {
+          "id": "module-cohesion",
+          "pass": true
+        },
+        {
+          "id": "file-naming",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:6972e6bface53cb7e60113432e72de790d4ae6cd1590c83bc5dfd0cb049091cf": {
       "checks": [
         {
           "id": "module-cohesion",
@@ -1383,141 +586,7 @@
     }
   },
   "symbols": {
-    "sha256:25b20e05339b8e8e68a613ee256d93580a3dfa848023902d74f5ef405671abf6": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:4fe0e80f075cbca9791ed1e6eb9be82f021ec1bba505114610d772f1e67aefe7": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "The `checks` field is typed as `list[dict[str, Any]]` but represents a list of check results with a known schema (id, pass, annotations, etc.). The codebase already defines `CheckResult` as a TypedDict for this shape. Using `list[CheckResult]` would make the type annotation more precise and self-documenting.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "Consider `list[CheckResult]` instead of `list[dict[str, Any]]` — the schema is known and already modeled by CheckResult."
-            }
-          ]
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:efc1f151cbdf8ebcb3e4b13c02aa7bd23a6701b661219b49e3633a84374ecf51": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
     "sha256:a62ed78d348bcdbf9dc24a0c6230fc40c23d5080aee36e391c703528197b4e4a": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:fc72193c17a02722a72f035c6e2e5e86b0ca47f6ad1ebafd3fa8c3c808fe8c0c": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "The `stats` field is typed as `dict[str, int]` but has a fixed schema with known keys (file_hit, file_miss, symbol_hit, symbol_miss) as seen at lines 637-642. A TypedDict would make the expected keys explicit and catch key typos at type-check time.",
-          "annotations": [
-            {
-              "offset": 5,
-              "message": "Consider a TypedDict for `stats` — the keys (file_hit, file_miss, symbol_hit, symbol_miss) are fixed and known."
-            }
-          ]
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:a1ac201611254c06d3bed0d4e20b2bee6a5789db282a6999bc11319a442f5b1f": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:97d2702033b112c4b7cd724b4a306428cffde67205e7adbd51284bcd538d492a": {
       "checks": [
         {
           "id": "type-annotations",
@@ -1557,27 +626,7 @@
         }
       ]
     },
-    "sha256:133b24c0267463b45cbfdbe1da3e0aa2f8a4f787f7af79e7d4001c51e7ef336a": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:6df0befa8bc194f9fbe8d27733dc3c7e8e54580a22169adc10b276fa6e584f9a": {
+    "sha256:36b163ca893984b3d1d6a6d39c6d5f1cde5b244e48548c80b41f55bad8224ca3": {
       "checks": [
         {
           "id": "type-annotations",
@@ -1617,423 +666,7 @@
         }
       ]
     },
-    "sha256:36b163ca893984b3d1d6a6d39c6d5f1cde5b244e48548c80b41f55bad8224ca3": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:79490823f217f9f08069bb9913ec1f8b4cb7fe25bde53120061dda834691893f": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:0cd7bf8e2b386921dd7fffe16fd451bd81cd0ca202695ebd19db0309a029258d": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:5d8c9189966dcbdc99b31378e0e6eeafa2a379fe11a18629cd0a29693bd58563": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "The `symbol_targets` field is typed as `list[dict[str, Any]]` but each entry has a known shape with `target` and `checks` keys (produced by `_restore_symbol_target` at line 588). This matches the structure that `TargetEntry` or a similar TypedDict already describes.",
-          "annotations": [
-            {
-              "offset": 3,
-              "message": "Consider a more specific type than `list[dict[str, Any]]` for `symbol_targets` — entries have a known `target`/`checks` structure."
-            }
-          ]
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:ec4c13aa5a25c40114c0de10d8b1ad7249c1c25a2f22ed2d3c483d3cb12b7603": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "The parameter `staging_files` is typed as `Iterable[dict[str, Any]]` but each dict has a known, repeating schema with 'stage', 'target', and 'checks' keys. A TypedDict (e.g., StagingEntry) would document the expected structure.",
-          "annotations": [
-            {
-              "offset": 0,
-              "message": "staging_files: Iterable[dict[str, Any]] — these dicts have a known schema (stage, target, checks); consider a TypedDict."
-            }
-          ]
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The docstring 'Build the files cache section: content hash -> checks with offsets.' largely restates the function name and return type. The 'content hash -> checks with offsets' part is marginally useful but mostly duplicates what the return type `dict[str, CacheChecks]` already conveys.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "Docstring restates the function name; consider removing or adding non-obvious detail (e.g., why only 'file' stage entries are included)."
-            }
-          ]
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:e9c12cf18610359d62fefb3e09a270763cbe9cd9db41085f95b6cc887e544134": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "Same as _build_files_cache: `staging_files` is `Iterable[dict[str, Any]]` but each dict follows a known schema with 'stage', 'target', and 'checks' keys. A TypedDict would make the expected shape explicit.",
-          "annotations": [
-            {
-              "offset": 0,
-              "message": "staging_files: Iterable[dict[str, Any]] — known schema; consider a TypedDict like StagingEntry."
-            }
-          ]
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The docstring 'Build the symbols cache section: content hash -> checks with offsets.' restates the function name and return type with no additional information.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "Docstring paraphrases the function name; consider removing or documenting non-obvious behavior (e.g., how grouped vs per-symbol formats are handled, or why IndexError/ValueError are silently skipped)."
-            }
-          ]
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": false,
-          "note": "The variable `raw_targets` on line 702 is misleading — it holds symbol entries (each with target and checks), not raw target descriptors. The name suggests unprocessed TargetDescriptors.",
-          "annotations": [
-            {
-              "offset": 6,
-              "message": "raw_targets is misleading; these are symbol entries (with target+checks), not raw targets. Consider `symbol_entries` to match the loop variable."
-            }
-          ]
-        }
-      ]
-    },
-    "sha256:6873e44b7f575ceacc3ce8bbc083c67bf680185002479dc01c24ff58a5baab1e": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:3b338d220016dde34b22d8bcecadce402b47421bb9133b5d05d249bb87dd3a62": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": false,
-          "note": "The is_review_file boolean flag creates two behavioral modes in a 52-line function: when True, missed symbols are tracked in review_syms; when False, they are silently dropped. This flag-driven branching indicates the function handles two distinct use cases (checking cached files vs. review files) that should be separated or the shared logic extracted.",
-          "annotations": [
-            {
-              "offset": 4,
-              "message": "Boolean flag parameter creates two behavioral modes in the same function. Consider splitting into two functions or extracting the shared iteration logic."
-            }
-          ]
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": false,
-          "note": "file_list is typed as list[str] but the function only iterates over it. Use Iterable[str] or Sequence[str] to accept the minimal type needed.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "file_list: list[str] is only iterated — use Sequence[str] or Iterable[str]."
-            }
-          ]
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:ce896ebba85d566ae6896f5a76c3d379242fb06233576bf11da08eb0c56ee056": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "Parameter and return types use raw `dict[str, Any]` instead of the `CheckResult` and `Annotation` TypedDicts already defined in this module. The signature `Iterable[dict[str, Any]]` obscures that these dicts have a known schema with 'id', 'pass', 'annotations' keys. Using the domain types would make the contract explicit.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "`checks: Iterable[dict[str, Any]]` should be `Iterable[CheckResult]` — the CheckResult TypedDict is defined at L158 and matches this data shape."
-            },
-            {
-              "offset": 2,
-              "message": "Return type `list[dict[str, Any]]` should be `list[CheckResult]` to reflect the actual structure being returned."
-            }
-          ]
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "The function signature uses `dict[str, Any]` for both the input and output check objects, and produces annotation dicts with `{\"offset\": int, \"message\": str}` inline. The codebase already defines `Annotation` (L152) with an `offset` field and `CheckResult` (L158). Using these domain types would make the function's contract self-documenting.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "Parameter `checks` uses `Iterable[dict[str, Any]]` — the `CheckResult` TypedDict already models this data shape."
-            },
-            {
-              "offset": 13,
-              "message": "Inline dict `{\"offset\": ..., \"message\": ...}` matches the `Annotation` TypedDict defined at L152 — use it for type safety."
-            }
-          ]
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The first line of the docstring ('Convert annotation absolute line numbers to offsets relative to base_line') restates what the function name already communicates. However, the second paragraph explaining file vs symbol base_line semantics adds genuine value. Consider trimming the first sentence or merging it into the explanation.",
-          "annotations": [
-            {
-              "offset": 3,
-              "message": "First sentence paraphrases the function name `_convert_annotations_to_offsets`. The base_line explanation below it is the valuable part."
-            }
-          ]
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": false,
-          "note": "The variable `ann` is a truncation of `annotation`, not a recognized abbreviation. Within the list comprehension it should be spelled out for clarity.",
-          "annotations": [
-            {
-              "offset": 13,
-              "message": "`ann` should be `annotation` — it is an ad-hoc truncation, not a recognized short form."
-            }
-          ]
-        }
-      ]
-    },
-    "sha256:9b1d670c01bfc613f5ec09d0c4a5834e3d58fbe21f9f5de2b0eb4c75904adf16": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "Same issue as its inverse function: parameter and return types use raw `dict[str, Any]` instead of the `CheckResult` and `Annotation` TypedDicts already defined in this module. The signature hides the known schema.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "`checks: Iterable[dict[str, Any]]` should be `Iterable[CheckResult]` — the CheckResult TypedDict is defined at L158 and matches this data shape."
-            },
-            {
-              "offset": 2,
-              "message": "Return type `list[dict[str, Any]]` should be `list[CheckResult]` to reflect the actual structure being returned."
-            }
-          ]
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "Mirror image of `_convert_annotations_to_offsets`: the function uses `dict[str, Any]` for checks and constructs annotation dicts inline as `{\"line\": int, \"message\": str}`. The codebase defines `Annotation` (L152) and `CheckResult` (L158) which model exactly these shapes.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "Parameter `checks` uses `Iterable[dict[str, Any]]` — the `CheckResult` TypedDict already models this data shape."
-            },
-            {
-              "offset": 12,
-              "message": "Inline dict `{\"line\": ..., \"message\": ...}` could use a structured type for the annotation output, though note the current `Annotation` TypedDict uses `offset` not `line` — a second TypedDict or union may be needed."
-            }
-          ]
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The docstring ('Convert annotation offsets back to absolute line numbers. Inverse of _convert_annotations_to_offsets.') restates the function name and adds only a cross-reference. The cross-reference is mildly useful but the first sentence is pure paraphrase of the name.",
-          "annotations": [
-            {
-              "offset": 3,
-              "message": "First sentence paraphrases the function name. Consider replacing with a note about when/why this conversion is needed (e.g., 'Used when restoring cached checks to staging format')."
-            }
-          ]
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": false,
-          "note": "The variable `ann` is a truncation of `annotation`, not a recognized abbreviation. Should be spelled out in the list comprehension.",
-          "annotations": [
-            {
-              "offset": 12,
-              "message": "`ann` should be `annotation` — it is an ad-hoc truncation, not a recognized short form."
-            }
-          ]
-        }
-      ]
-    },
-    "sha256:728f4603a6a0a63e108bb263095c8d40953bda830292467612e4e58b9c1f74ea": {
+    "sha256:8df758210a4fe5a92f0c452373399459b25a4f2c31cc0035b9e6f88d980b9b5f": {
       "checks": [
         {
           "id": "data-structure-fit",
@@ -2061,14 +694,7 @@
         },
         {
           "id": "idiomatic-constructs",
-          "pass": false,
-          "note": "The function uses a chain of if/elif checks on `pass_value` and then `status` to dispatch counting logic, but lines 461-470 already use a match statement for the `status` field. The earlier dispatch on `pass_value` (lines 449-454) could also be folded into the match block for consistency, using a single match on `(pass_value, status)` or restructuring so that status is always resolved first and the match handles all branches uniformly.",
-          "annotations": [
-            {
-              "offset": 10,
-              "message": "The early-return branches for pass_value is True and pass_value is None could be folded into the match statement at line 461 for a single, uniform dispatch structure"
-            }
-          ]
+          "pass": true
         },
         {
           "id": "naming-clarity",
@@ -2076,46 +702,7 @@
         }
       ]
     },
-    "sha256:940ce7a92f68ea7debadacf119aeb8af36f7d299581abe66feeda7c04713d5c1": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": false,
-          "note": "The series of if/elif checks on key presence is structural dispatch over format variants. A match/case with mapping patterns (e.g., case {\"targets\": targets}, case {\"target\": target}) would express the structural intent more directly.",
-          "annotations": [
-            {
-              "offset": 6,
-              "message": "Structural dispatch on dict keys — match/case with mapping patterns (case {\"targets\": t}, case {\"target\": t}) would express the format-variant intent more directly"
-            }
-          ]
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:f7d695dea5b844cd6f4a3127b19477d48579abe16bccb4f62ae6077787f4a829": {
+    "sha256:673b950169a41481d4785b9064c4a9288e477dbe8c4a53c0a716d39d712c9ad3": {
       "checks": [
         {
           "id": "data-structure-fit",
@@ -2183,38 +770,6 @@
         }
       ]
     },
-    "sha256:da4cbe94571a5a36964645c2dc0f858ef905c02d8b69bff70dadb4d6f61af29a": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
     "sha256:3369efbc9a018ab422a3cfcb98edb569509d1d389f31e76cd9132f95cb59e6b4": {
       "checks": [
         {
@@ -2243,53 +798,7 @@
         }
       ]
     },
-    "sha256:2857f89291a7a18d4558580e6f2b7f4468fe96a4040637d005b2aaad38df6ea5": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": false,
-          "note": "Return type is dict[str, Any] but the returned dict has a known, fixed shape matching the existing TargetEntry TypedDict (keys: 'target' and 'checks'). The return type should be TargetEntry to express the actual data shape.",
-          "annotations": [
-            {
-              "offset": 2,
-              "message": "Return type dict[str, Any] should be TargetEntry — the returned dict always has 'target' (SymbolTarget) and 'checks' (list) keys matching the existing TypedDict."
-            }
-          ]
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "Returns dict[str, Any] when the codebase already defines TargetEntry TypedDict with the exact same shape (target + checks). Using the existing structured type would make the contract explicit.",
-          "annotations": [
-            {
-              "offset": 2,
-              "message": "Return type should use the existing TargetEntry TypedDict instead of dict[str, Any]."
-            }
-          ]
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:673b950169a41481d4785b9064c4a9288e477dbe8c4a53c0a716d39d712c9ad3": {
+    "sha256:f7d695dea5b844cd6f4a3127b19477d48579abe16bccb4f62ae6077787f4a829": {
       "checks": [
         {
           "id": "data-structure-fit",
@@ -2321,7 +830,7 @@
         }
       ]
     },
-    "sha256:58fffe3de8ddec9dd92acdc677fcca9ec0196f1753c94f971623072e9e6d14d2": {
+    "sha256:25b20e05339b8e8e68a613ee256d93580a3dfa848023902d74f5ef405671abf6": {
       "checks": [
         {
           "id": "type-annotations",
@@ -2329,14 +838,6 @@
         },
         {
           "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
           "pass": true
         },
         {
@@ -2349,53 +850,15 @@
         }
       ]
     },
-    "sha256:1d8255d0e83f47b19c3c500fca3c685bf45068fa43f579cbfcc4da170bd42573": {
+    "sha256:79490823f217f9f08069bb9913ec1f8b4cb7fe25bde53120061dda834691893f": {
       "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
         {
           "id": "type-annotations",
           "pass": true
         },
         {
           "id": "single-responsibility",
-          "pass": false,
-          "note": "The function mixes orchestration logic (loading files, merging staging, building caches, assembling the CacheFile) with I/O side effects: it writes the cache file to disk (line 769), prints summary output to stdout (lines 771-779), and calls sys.exit(1) on empty staging (line 733). The exit-on-error and file-writing should be separated from the pure data assembly so the function can be used programmatically without side effects.",
-          "annotations": [
-            {
-              "offset": 9,
-              "message": "sys.exit(1) here makes the function unusable as a library call; raise an exception instead and let the CLI handle exit."
-            },
-            {
-              "offset": 45,
-              "message": "Writing the cache file to disk is a side effect that couples this function to the filesystem. Consider returning the CacheFile and letting the caller write it."
-            },
-            {
-              "offset": 47,
-              "message": "Printing summary to stdout mixes presentation with logic. Consider returning the summary and letting the CLI format output."
-            }
-          ]
-        },
-        {
-          "id": "parameter-breadth",
           "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The docstring 'Merge staging files and build combined cache.json v3.' restates the function name ('build') and could be inferred from the signature. It adds only the version number 'v3' which is already visible in the function body (version=\"3\").",
-          "annotations": [
-            {
-              "offset": 5,
-              "message": "Docstring restates the function name; consider removing or documenting the merge strategy, error conditions, or output format."
-            }
-          ]
         },
         {
           "id": "idiomatic-constructs",
@@ -2403,23 +866,12 @@
         },
         {
           "id": "naming-clarity",
-          "pass": false,
-          "note": "The loop variable `entry` on line 740 is generic. In a function with multiple data structures (staging_files, targets, checks), a more specific name like `target_entry` or `target_result` would improve clarity.",
-          "annotations": [
-            {
-              "offset": 16,
-              "message": "entry is generic; consider target_entry to distinguish from other iterables in scope."
-            }
-          ]
+          "pass": true
         }
       ]
     },
-    "sha256:b37e077da40646a354488a993a6e296ebddbfb818a4a76ea8b3f06740b9f6341": {
+    "sha256:6df0befa8bc194f9fbe8d27733dc3c7e8e54580a22169adc10b276fa6e584f9a": {
       "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
         {
           "id": "type-annotations",
           "pass": true
@@ -2429,11 +881,23 @@
           "pass": true
         },
         {
-          "id": "parameter-breadth",
+          "id": "idiomatic-constructs",
           "pass": true
         },
         {
-          "id": "redundant-docstrings",
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:133b24c0267463b45cbfdbe1da3e0aa2f8a4f787f7af79e7d4001c51e7ef336a": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
           "pass": true
         },
         {
@@ -2442,18 +906,67 @@
         },
         {
           "id": "naming-clarity",
-          "pass": false,
-          "note": "Variables sym_cached and sym_review use the ad-hoc truncation 'sym' for 'symbol'. Per naming conventions, project-specific words should be spelled out.",
-          "annotations": [
-            {
-              "offset": 16,
-              "message": "sym_cached -> symbol_cached: 'sym' is an ad-hoc truncation of 'symbol'."
-            },
-            {
-              "offset": 17,
-              "message": "sym_review -> symbol_review: 'sym' is an ad-hoc truncation of 'symbol'."
-            }
-          ]
+          "pass": true
+        }
+      ]
+    },
+    "sha256:97d2702033b112c4b7cd724b4a306428cffde67205e7adbd51284bcd538d492a": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:a1ac201611254c06d3bed0d4e20b2bee6a5789db282a6999bc11319a442f5b1f": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:efc1f151cbdf8ebcb3e4b13c02aa7bd23a6701b661219b49e3633a84374ecf51": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
         }
       ]
     },
@@ -2482,145 +995,6 @@
       ]
     },
     "sha256:1d5750d3843590cc3a4b649965bcd299e2354cafc169dd41f432519e24f4326a": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:83c7472b7dd7fff048308b2230cd608e693e654f7ecae5fbaed623a336f89089": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": false,
-          "note": "checklist_items parameter accepts dict[str, ChecklistItem] but only calls .get(), so Mapping[str, ChecklistItem] would be the minimal abstract type.",
-          "annotations": [
-            {
-              "offset": 0,
-              "message": "checklist_items: dict[str, ChecklistItem] -> Mapping[str, ChecklistItem]; only .get() is used"
-            }
-          ]
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:8df758210a4fe5a92f0c452373399459b25a4f2c31cc0035b9e6f88d980b9b5f": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:cc91b47d4078d33bb9dda9b494ae43036c081da2556a45479304dc71b82469e2": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:8fe0a7b4662812c14e5d0a1f0213720333d4d794e8eda7ede6226566aecaa509": {
       "checks": [
         {
           "id": "type-annotations",
@@ -2680,134 +1054,6 @@
         }
       ]
     },
-    "sha256:faf1e3f4067944667500c67fabd35d787f0610943490f67037f19fcf651ddf46": {
-      "checks": [
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "Returns list[dict[str, Any]] but staging files have a known recurring schema with 'stage', 'target', and 'checks' keys. A StagingEntry TypedDict (or discriminated union of per-stage TypedDicts) would document the expected shape and catch key typos at type-check time.",
-          "annotations": [
-            {
-              "offset": 0,
-              "message": "Return type list[dict[str, Any]] loses the known staging file schema; consider a StagingEntry TypedDict or union type."
-            }
-          ]
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:43a2686a416c35c7359a49202675b70b33a80eb6b229cfb9b0ebf6230a61c1b2": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": true
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": true
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": true
-        }
-      ]
-    },
-    "sha256:335697f70baf065596fe2b3d797faef6ef58b3d0422eefea4c438e2237e33aeb": {
-      "checks": [
-        {
-          "id": "data-structure-fit",
-          "pass": true
-        },
-        {
-          "id": "type-annotations",
-          "pass": true
-        },
-        {
-          "id": "single-responsibility",
-          "pass": true
-        },
-        {
-          "id": "parameter-breadth",
-          "pass": true
-        },
-        {
-          "id": "no-primitive-obsession",
-          "pass": false,
-          "note": "The `staging_files` parameter accepts `Iterable[dict[str, Any]]` but each staging dict has a known, repeating schema with `stage`, `target`, `checks`, and optional `file` keys. A `StagingEntry` TypedDict already could be defined to document this shape, making the contract explicit rather than requiring callers and readers to know the implicit dict structure.",
-          "annotations": [
-            {
-              "offset": 1,
-              "message": "staging_files: Iterable[dict[str, Any]] -- each dict has a known schema (stage, target, checks, file); consider defining a StagingEntry TypedDict"
-            }
-          ]
-        },
-        {
-          "id": "redundant-docstrings",
-          "pass": false,
-          "note": "The docstring 'Summary counts checks from all symbols, including those filtered out of targets as all-pass' describes an implementation detail about counting behavior but is misleadingly phrased as a sentence fragment starting with 'Summary'. It does not clearly explain the function's purpose (merging staging files into a unified MergeResult). The useful information about counting all-pass symbols could be a code comment instead.",
-          "annotations": [
-            {
-              "offset": 4,
-              "message": "Docstring is a confusing fragment; it describes a side-detail (summary counting) rather than the function's main purpose (merge staging entries, enrich checks, filter all-pass symbols, and return a MergeResult)"
-            }
-          ]
-        },
-        {
-          "id": "idiomatic-constructs",
-          "pass": true
-        },
-        {
-          "id": "naming-clarity",
-          "pass": false,
-          "note": "The variable `items` (line 404) is a generic name that shadows the meaning of `checklist_items`. In a function that also processes staging 'items' and 'entries', this name is ambiguous. A more descriptive name like `checklist_map` or `checklist_lookup` would clarify its role as a lookup dictionary.",
-          "annotations": [
-            {
-              "offset": 6,
-              "message": "items = checklist_items or {} -- 'items' is generic and ambiguous in a function that handles multiple kinds of items; prefer 'checklist_map' or 'checklist_lookup'"
-            }
-          ]
-        }
-      ]
-    },
     "sha256:c9d3649e9008c8c3338ffa911bec486aec9d306321ce724044a82f106afe5e2e": {
       "checks": [
         {
@@ -2857,6 +1103,1092 @@
         {
           "id": "idiomatic-constructs",
           "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:cc91b47d4078d33bb9dda9b494ae43036c081da2556a45479304dc71b82469e2": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:da4cbe94571a5a36964645c2dc0f858ef905c02d8b69bff70dadb4d6f61af29a": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:8fe0a7b4662812c14e5d0a1f0213720333d4d794e8eda7ede6226566aecaa509": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:0cd7bf8e2b386921dd7fffe16fd451bd81cd0ca202695ebd19db0309a029258d": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:6873e44b7f575ceacc3ce8bbc083c67bf680185002479dc01c24ff58a5baab1e": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:58fffe3de8ddec9dd92acdc677fcca9ec0196f1753c94f971623072e9e6d14d2": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:0830495f898b5bab9e3b188ddfde94893be3c77e479f327597865c4c334f3c2b": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:bcfc3adc72b1168b423d405ca338737622983a6296f0d2204fd20615d41b2673": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:61f02c62d1476df040b9f4b43d40ae5b56198f54deb2f527434b3eda759ed2b0": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": false,
+          "note": "`cached` and `review` are asymmetric with `cached_symbols` and `review_symbols`. The bare names suggest scalar values or unrelated concepts; naming them `cached_files` and `review_files` would make the parallel with the `_symbols` fields explicit and self-documenting.",
+          "annotations": [
+            {
+              "offset": 1,
+              "message": "`cached: list[str]` — rename to `cached_files` to match the parallel field `cached_symbols`"
+            },
+            {
+              "offset": 2,
+              "message": "`review: list[str]` — rename to `review_files` to match the parallel field `review_symbols`"
+            }
+          ]
+        }
+      ]
+    },
+    "sha256:b70935756a5ffc6277004d4305d0ea92b5b14ced307928d775de54af7e1e304e": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": false,
+          "note": "`file_hits` and `symbol_hits` use plural forms, while the sibling `CacheStats` TypedDict uses singular forms (`file_hit`, `symbol_hit`, `file_miss`, `symbol_miss`). Within `RefreshStats` itself the names are internally consistent, but the divergence from `CacheStats`'s convention (singular counter names) creates a terminology split for the same concept across the same file.",
+          "annotations": [
+            {
+              "offset": 3,
+              "message": "`file_hits` — uses plural; `CacheStats.file_hit` uses singular for the same counter concept"
+            },
+            {
+              "offset": 4,
+              "message": "`symbol_hits` — uses plural; `CacheStats.symbol_hit` uses singular for the same counter concept"
+            }
+          ]
+        }
+      ]
+    },
+    "sha256:1924f10253225f44bb6945390eb0db052b1537c5583f871210e1de41698bab86": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": false,
+          "note": "Three fields use `list[dict[str, Any]]` when more specific TypedDicts are already defined in the same file. `checks` should be `list[CheckResult]`; `targets` should be `list[dict[str, Any]]` narrowed to `list[TargetEntry]` or a dedicated TypedDict; `symbols` similarly. Using `Any`-keyed dicts here defeats the purpose of the surrounding type system.",
+          "annotations": [
+            {
+              "offset": 4,
+              "message": "`list[dict[str, Any]]` — should be `list[CheckResult]`; `CheckResult` TypedDict is defined in the same file"
+            },
+            {
+              "offset": 6,
+              "message": "`list[dict[str, Any]]` — should be `list[TargetEntry]` or a dedicated TypedDict if shape differs"
+            },
+            {
+              "offset": 7,
+              "message": "`list[dict[str, Any]]` — should be `list[TargetEntry]` or a dedicated TypedDict if shape differs"
+            }
+          ]
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true,
+          "note": "Docstring 'A single staging file’s content. Fields vary by stage type.' adds meaningful context not captured by the class name alone — explains the `total=False` choice."
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:b31591247d154de6f9b1ce36cf0f50bc2444b9fd87f85ffe8019a0af2cd956aa": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": false
+        }
+      ]
+    },
+    "sha256:eb44859d457b4da151934e31694a4b57a9d0e2bc44392636b42bb2d5f5886148": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:663a0a78511437456840553768c360a95d439b723f8d4ce018b955a3f6cc1792": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:47216b535feeb8c5c64d88e3914015d9f2c2fb2e0832fbb1fbeafc8a16bd19e3": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:b726d9428608420a5c4e803fa33c4a8a7183685509a2fd2970557c9951d2a05a": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:c027b7cb4895b1c2681643e5b89fc5c7908db8325b2c285ed650bd534a1cf781": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:b4f13b8d31ce6837412b04023402d585f5535fd2dee88266ea8466b43000b8ac": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:a2d86cb9af2e35edd23ea868057dbbc6193610b469442533a45acaf515e68439": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:603900cdae8d637c527587fe87facace527e2f8d47c5d9aad39af8ad4c62e290": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:3a9ec610c9f078e6b1f7d94250a3a7d747e40428f9f4d05b90464be05851e287": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:8aad8980bfbd3c117a04574c7c323b153186db4f59e32cc4f49d78ff2ff391ef": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:dfef8716d6a9ec3a0dc4cc69da638a6e3248928709faa2fe6cfb383c0578ae8e": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:7e1a5aad5adc4ce3644016f0a1d080c33132dba9b430d3d3f8729e077a261ca4": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:05dca442651446878d5004e121b5d76dc067a60dc06b5d47b6408fc23f6b00c8": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:f382895510346105fdd87eda0bc1aa55e1ae7800b643036a9a644b3b32c09ea0": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": false
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:8530d7c052cac8c80f80f57851250c31620ec0135469784cffd775054f3c860f": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:130d2519b019cd5b3c55f855ad77bc2dbf415622403d6fb8cfcf3c35000c8a9e": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:b8877f8562fc578619a6e8a8fae1762c9b2bfefc132ccf756750cf7261f82c4d": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:377e2542b55ed1b1b7e346a5d084f1110a33331a487aa88a34b89a037293e620": {
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:cacbdf661a93d47086ccccae65eee0948d38c6d975001318e5034783c40e6998": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": false,
+          "note": "`checklist_items` is typed as `dict[str, ChecklistItem] | None` but the function only reads from it (passes to `enrich_check`). The parameter should be `Mapping[str, ChecklistItem] | None` to accept the minimal read-only interface.",
+          "annotations": [
+            {
+              "offset": 2,
+              "message": "Use `Mapping[str, ChecklistItem] | None` — function only reads, never mutates this dict"
+            }
+          ]
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": false,
+          "note": "`checklist_items: dict[str, ChecklistItem] | None` accepts a mutable concrete dict, but the body only passes it to `enrich_check` which reads via `Mapping`-compatible access. Narrowing to `Mapping[str, ChecklistItem] | None` expresses the true dependency.",
+          "annotations": [
+            {
+              "offset": 2,
+              "message": "Accept `Mapping[str, ChecklistItem] | None` — only key-based reads are performed"
+            }
+          ]
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": false,
+          "note": "The `if stage in (...): ... elif stage == ...:` block dispatches on string literal values. A `match stage:` with `case \"changeset\" | \"file\":` and `case \"symbol\":` expresses the dispatch intent more directly and aligns with the `match`-based style used elsewhere in the file (e.g., `_extract_symbol_entries`, `target_sort_key`).",
+          "annotations": [
+            {
+              "offset": 13,
+              "message": "Replace if/elif stage dispatch with `match stage:` — intent is structural dispatch on a string literal"
+            }
+          ]
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:df4064cf703504072135da99f346eb19f6fe13fa4898a426c84aea5a108009d5": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    "sha256:3b67a83dd0dc8bebf6a4f39a7db7d8acc7ecaf938c78d72ad5580d2ee1a71ed1": {
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": false,
+          "note": "Lines 866-877 dispatch on `target_type` string values using `if/elif/else`. The semantic intent is value-based dispatch over a closed set of string literals (`\"symbol\"`, `\"file\"`, and a default). A `match target_type:` statement with `case \"symbol\":`, `case \"file\":`, and `case _:` expresses this dispatch intent more directly.",
+          "annotations": [
+            {
+              "offset": 36,
+              "message": "if/elif/else on target_type — use match target_type:"
+            }
+          ]
         },
         {
           "id": "naming-clarity",

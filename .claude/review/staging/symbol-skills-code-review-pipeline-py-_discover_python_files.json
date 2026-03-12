@@ -1,10 +1,13 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "compute_file_hash", "lines": [235, 236] },
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_discover_python_files", "lines": [925, 933] },
   "checks": [
+    { "id": "data-structure-fit", "pass": true },
     { "id": "type-annotations", "pass": true },
     { "id": "single-responsibility", "pass": true },
     { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": true },
+    { "id": "redundant-docstrings", "pass": true },
     { "id": "idiomatic-constructs", "pass": true },
     { "id": "naming-clarity", "pass": true }
   ]

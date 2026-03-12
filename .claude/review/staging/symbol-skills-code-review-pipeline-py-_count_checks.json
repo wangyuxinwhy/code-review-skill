@@ -1,14 +1,18 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_count_checks", "lines": [439, 478] },
+  "target": {
+    "type": "symbol",
+    "file": "skills/code-review/pipeline.py",
+    "symbol": "_count_checks",
+    "lines": [456, 491]
+  },
   "checks": [
     { "id": "data-structure-fit", "pass": true },
     { "id": "type-annotations", "pass": true },
     { "id": "single-responsibility", "pass": true },
     { "id": "parameter-breadth", "pass": true },
     { "id": "no-primitive-obsession", "pass": true },
-    { "id": "redundant-docstrings", "pass": true },
-    { "id": "idiomatic-constructs", "pass": false, "note": "The function uses a chain of if/elif checks on `pass_value` and then `status` to dispatch counting logic, but lines 461-470 already use a match statement for the `status` field. The earlier dispatch on `pass_value` (lines 449-454) could also be folded into the match block for consistency, using a single match on `(pass_value, status)` or restructuring so that status is always resolved first and the match handles all branches uniformly.", "annotations": [{ "line": 449, "message": "The early-return branches for pass_value is True and pass_value is None could be folded into the match statement at line 461 for a single, uniform dispatch structure" }] },
+    { "id": "idiomatic-constructs", "pass": true },
     { "id": "naming-clarity", "pass": true }
   ]
 }

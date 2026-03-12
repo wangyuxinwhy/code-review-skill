@@ -1,14 +1,40 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "merge_staging", "lines": [398, 436] },
+  "target": {
+    "type": "symbol",
+    "file": "skills/code-review/pipeline.py",
+    "symbol": "merge_staging",
+    "lines": [416, 453]
+  },
   "checks": [
     { "id": "data-structure-fit", "pass": true },
-    { "id": "type-annotations", "pass": true },
+    {
+      "id": "type-annotations",
+      "pass": false,
+      "note": "`checklist_items` is typed as `dict[str, ChecklistItem] | None` but the function only reads from it (passes to `enrich_check`). The parameter should be `Mapping[str, ChecklistItem] | None` to accept the minimal read-only interface.",
+      "annotations": [
+        { "line": 418, "message": "Use `Mapping[str, ChecklistItem] | None` — function only reads, never mutates this dict" }
+      ]
+    },
     { "id": "single-responsibility", "pass": true },
-    { "id": "parameter-breadth", "pass": true },
-    { "id": "no-primitive-obsession", "pass": false, "note": "The `staging_files` parameter accepts `Iterable[dict[str, Any]]` but each staging dict has a known, repeating schema with `stage`, `target`, `checks`, and optional `file` keys. A `StagingEntry` TypedDict already could be defined to document this shape, making the contract explicit rather than requiring callers and readers to know the implicit dict structure.", "annotations": [{ "line": 399, "message": "staging_files: Iterable[dict[str, Any]] -- each dict has a known schema (stage, target, checks, file); consider defining a StagingEntry TypedDict" }] },
-    { "id": "redundant-docstrings", "pass": false, "note": "The docstring 'Summary counts checks from all symbols, including those filtered out of targets as all-pass' describes an implementation detail about counting behavior but is misleadingly phrased as a sentence fragment starting with 'Summary'. It does not clearly explain the function's purpose (merging staging files into a unified MergeResult). The useful information about counting all-pass symbols could be a code comment instead.", "annotations": [{ "line": 402, "message": "Docstring is a confusing fragment; it describes a side-detail (summary counting) rather than the function's main purpose (merge staging entries, enrich checks, filter all-pass symbols, and return a MergeResult)" }] },
-    { "id": "idiomatic-constructs", "pass": true },
-    { "id": "naming-clarity", "pass": false, "note": "The variable `items` (line 404) is a generic name that shadows the meaning of `checklist_items`. In a function that also processes staging 'items' and 'entries', this name is ambiguous. A more descriptive name like `checklist_map` or `checklist_lookup` would clarify its role as a lookup dictionary.", "annotations": [{ "line": 404, "message": "items = checklist_items or {} -- 'items' is generic and ambiguous in a function that handles multiple kinds of items; prefer 'checklist_map' or 'checklist_lookup'" }] }
+    {
+      "id": "parameter-breadth",
+      "pass": false,
+      "note": "`checklist_items: dict[str, ChecklistItem] | None` accepts a mutable concrete dict, but the body only passes it to `enrich_check` which reads via `Mapping`-compatible access. Narrowing to `Mapping[str, ChecklistItem] | None` expresses the true dependency.",
+      "annotations": [
+        { "line": 418, "message": "Accept `Mapping[str, ChecklistItem] | None` — only key-based reads are performed" }
+      ]
+    },
+    { "id": "no-primitive-obsession", "pass": true },
+    { "id": "redundant-docstrings", "pass": true },
+    {
+      "id": "idiomatic-constructs",
+      "pass": false,
+      "note": "The `if stage in (...): ... elif stage == ...:` block dispatches on string literal values. A `match stage:` with `case \"changeset\" | \"file\":` and `case \"symbol\":` expresses the dispatch intent more directly and aligns with the `match`-based style used elsewhere in the file (e.g., `_extract_symbol_entries`, `target_sort_key`).",
+      "annotations": [
+        { "line": 429, "message": "Replace if/elif stage dispatch with `match stage:` — intent is structural dispatch on a string literal" }
+      ]
+    },
+    { "id": "naming-clarity", "pass": true }
   ]
 }

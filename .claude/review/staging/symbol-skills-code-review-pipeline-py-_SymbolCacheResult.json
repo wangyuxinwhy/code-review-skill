@@ -1,10 +1,9 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_SymbolCacheResult", "lines": [507, 512] },
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_SymbolCacheResult", "lines": [520, 525] },
   "checks": [
-    { "id": "type-annotations", "pass": false, "note": "The `symbol_targets` field is typed as `list[dict[str, Any]]` but each entry has a known shape with `target` and `checks` keys (produced by `_restore_symbol_target` at line 588). This matches the structure that `TargetEntry` or a similar TypedDict already describes.", "annotations": [{ "line": 510, "message": "Consider a more specific type than `list[dict[str, Any]]` for `symbol_targets` — entries have a known `target`/`checks` structure." }] },
+    { "id": "type-annotations", "pass": true },
     { "id": "single-responsibility", "pass": true },
-    { "id": "idiomatic-constructs", "pass": true },
-    { "id": "naming-clarity", "pass": true }
+    { "id": "naming-clarity", "pass": false }
   ]
 }

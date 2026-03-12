@@ -4,76 +4,16 @@
     "type": "symbol",
     "file": "skills/code-review/pipeline.py",
     "symbol": "_convert_offsets_to_lines",
-    "lines": [376, 392]
+    "lines": [397, 410]
   },
   "checks": [
-    {
-      "id": "data-structure-fit",
-      "pass": true
-    },
-    {
-      "id": "type-annotations",
-      "pass": false,
-      "note": "Same issue as its inverse function: parameter and return types use raw `dict[str, Any]` instead of the `CheckResult` and `Annotation` TypedDicts already defined in this module. The signature hides the known schema.",
-      "annotations": [
-        {
-          "line": 377,
-          "message": "`checks: Iterable[dict[str, Any]]` should be `Iterable[CheckResult]` — the CheckResult TypedDict is defined at L158 and matches this data shape."
-        },
-        {
-          "line": 378,
-          "message": "Return type `list[dict[str, Any]]` should be `list[CheckResult]` to reflect the actual structure being returned."
-        }
-      ]
-    },
-    {
-      "id": "single-responsibility",
-      "pass": true
-    },
-    {
-      "id": "parameter-breadth",
-      "pass": true
-    },
-    {
-      "id": "no-primitive-obsession",
-      "pass": false,
-      "note": "Mirror image of `_convert_annotations_to_offsets`: the function uses `dict[str, Any]` for checks and constructs annotation dicts inline as `{\"line\": int, \"message\": str}`. The codebase defines `Annotation` (L152) and `CheckResult` (L158) which model exactly these shapes.",
-      "annotations": [
-        {
-          "line": 377,
-          "message": "Parameter `checks` uses `Iterable[dict[str, Any]]` — the `CheckResult` TypedDict already models this data shape."
-        },
-        {
-          "line": 388,
-          "message": "Inline dict `{\"line\": ..., \"message\": ...}` could use a structured type for the annotation output, though note the current `Annotation` TypedDict uses `offset` not `line` — a second TypedDict or union may be needed."
-        }
-      ]
-    },
-    {
-      "id": "redundant-docstrings",
-      "pass": false,
-      "note": "The docstring ('Convert annotation offsets back to absolute line numbers. Inverse of _convert_annotations_to_offsets.') restates the function name and adds only a cross-reference. The cross-reference is mildly useful but the first sentence is pure paraphrase of the name.",
-      "annotations": [
-        {
-          "line": 379,
-          "message": "First sentence paraphrases the function name. Consider replacing with a note about when/why this conversion is needed (e.g., 'Used when restoring cached checks to staging format')."
-        }
-      ]
-    },
-    {
-      "id": "idiomatic-constructs",
-      "pass": true
-    },
-    {
-      "id": "naming-clarity",
-      "pass": false,
-      "note": "The variable `ann` is a truncation of `annotation`, not a recognized abbreviation. Should be spelled out in the list comprehension.",
-      "annotations": [
-        {
-          "line": 388,
-          "message": "`ann` should be `annotation` — it is an ad-hoc truncation, not a recognized short form."
-        }
-      ]
-    }
+    { "id": "data-structure-fit", "pass": true },
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": true },
+    { "id": "redundant-docstrings", "pass": true },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": true }
   ]
 }

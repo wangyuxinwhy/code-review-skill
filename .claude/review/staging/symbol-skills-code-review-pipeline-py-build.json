@@ -1,14 +1,14 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "build", "lines": [724, 781] },
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "build", "lines": [733, 780] },
   "checks": [
     { "id": "data-structure-fit", "pass": true },
     { "id": "type-annotations", "pass": true },
-    { "id": "single-responsibility", "pass": false, "note": "The function mixes orchestration logic (loading files, merging staging, building caches, assembling the CacheFile) with I/O side effects: it writes the cache file to disk (line 769), prints summary output to stdout (lines 771-779), and calls sys.exit(1) on empty staging (line 733). The exit-on-error and file-writing should be separated from the pure data assembly so the function can be used programmatically without side effects.", "annotations": [{ "line": 733, "message": "sys.exit(1) here makes the function unusable as a library call; raise an exception instead and let the CLI handle exit." }, { "line": 769, "message": "Writing the cache file to disk is a side effect that couples this function to the filesystem. Consider returning the CacheFile and letting the caller write it." }, { "line": 771, "message": "Printing summary to stdout mixes presentation with logic. Consider returning the summary and letting the CLI format output." }] },
+    { "id": "single-responsibility", "pass": true },
     { "id": "parameter-breadth", "pass": true },
     { "id": "no-primitive-obsession", "pass": true },
-    { "id": "redundant-docstrings", "pass": false, "note": "The docstring 'Merge staging files and build combined cache.json v3.' restates the function name ('build') and could be inferred from the signature. It adds only the version number 'v3' which is already visible in the function body (version=\"3\").", "annotations": [{ "line": 729, "message": "Docstring restates the function name; consider removing or documenting the merge strategy, error conditions, or output format." }] },
-    { "id": "idiomatic-constructs", "pass": true },
-    { "id": "naming-clarity", "pass": false, "note": "The loop variable `entry` on line 740 is generic. In a function with multiple data structures (staging_files, targets, checks), a more specific name like `target_entry` or `target_result` would improve clarity.", "annotations": [{ "line": 740, "message": "entry is generic; consider target_entry to distinguish from other iterables in scope." }] }
+    { "id": "redundant-docstrings", "pass": true },
+    { "id": "idiomatic-constructs", "pass": false },
+    { "id": "naming-clarity", "pass": true }
   ]
 }

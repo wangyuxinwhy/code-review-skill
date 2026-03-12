@@ -1,6 +1,6 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "extract_symbols", "lines": [70, 80] },
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_verify_targets", "lines": [936, 965] },
   "checks": [
     { "id": "data-structure-fit", "pass": true },
     { "id": "type-annotations", "pass": true },

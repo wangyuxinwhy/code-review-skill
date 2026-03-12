@@ -1,7 +1,8 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_ranges_overlap", "lines": [135, 136] },
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_read_source_lines", "lines": [801, 805] },
   "checks": [
+    { "id": "data-structure-fit", "pass": true },
     { "id": "type-annotations", "pass": true },
     { "id": "single-responsibility", "pass": true },
     { "id": "parameter-breadth", "pass": true },

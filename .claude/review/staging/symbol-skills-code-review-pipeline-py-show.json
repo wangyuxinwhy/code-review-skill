@@ -1,0 +1,21 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "show", "lines": [830, 908] },
+  "checks": [
+    { "id": "data-structure-fit", "pass": true },
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": true },
+    { "id": "redundant-docstrings", "pass": true },
+    {
+      "id": "idiomatic-constructs",
+      "pass": false,
+      "note": "Lines 866-877 dispatch on `target_type` string values using `if/elif/else`. The semantic intent is value-based dispatch over a closed set of string literals (`\"symbol\"`, `\"file\"`, and a default). A `match target_type:` statement with `case \"symbol\":`, `case \"file\":`, and `case _:` expresses this dispatch intent more directly.",
+      "annotations": [
+        { "line": 866, "message": "if/elif/else on target_type — use match target_type:" }
+      ]
+    },
+    { "id": "naming-clarity", "pass": true }
+  ]
+}

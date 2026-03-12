@@ -1,11 +1,12 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_check_symbol_cache", "lines": [547, 598] },
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_check_symbol_cache", "lines": [560, 606] },
   "checks": [
     { "id": "data-structure-fit", "pass": true },
     { "id": "type-annotations", "pass": true },
-    { "id": "single-responsibility", "pass": false, "note": "The is_review_file boolean flag creates two behavioral modes in a 52-line function: when True, missed symbols are tracked in review_syms; when False, they are silently dropped. This flag-driven branching indicates the function handles two distinct use cases (checking cached files vs. review files) that should be separated or the shared logic extracted.", "annotations": [{ "line": 551, "message": "Boolean flag parameter creates two behavioral modes in the same function. Consider splitting into two functions or extracting the shared iteration logic." }] },
-    { "id": "parameter-breadth", "pass": false, "note": "file_list is typed as list[str] but the function only iterates over it. Use Iterable[str] or Sequence[str] to accept the minimal type needed.", "annotations": [{ "line": 548, "message": "file_list: list[str] is only iterated — use Sequence[str] or Iterable[str]." }] },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": true },
     { "id": "redundant-docstrings", "pass": true },
     { "id": "idiomatic-constructs", "pass": true },
     { "id": "naming-clarity", "pass": true }

@@ -1,6 +1,6 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_FileCacheResult", "lines": [500, 504] },
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "CacheStats", "lines": [236, 240] },
   "checks": [
     { "id": "type-annotations", "pass": true },
     { "id": "single-responsibility", "pass": true },

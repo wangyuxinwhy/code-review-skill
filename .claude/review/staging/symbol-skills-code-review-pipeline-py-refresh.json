@@ -1,6 +1,6 @@
 {
   "stage": "symbol",
-  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_get_diff_hunks", "lines": [107, 132] },
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "refresh", "lines": [968, 1083] },
   "checks": [
     { "id": "data-structure-fit", "pass": true },
     { "id": "type-annotations", "pass": true },
