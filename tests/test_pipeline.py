@@ -1356,3 +1356,106 @@ class TestRestoreSymbolTarget:
         result = _restore_symbol_target("b.py", symbol_def, cache_checks)
 
         assert result["checks"] == [{"id": "a", "pass": True}]
+
+
+class TestBuildInitInstructions:
+    def test_contains_default_checklist(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        checklist = "version: \"2\"\nitems:\n  - id: test-item\n"
+        result = _build_init_instructions(checklist)
+
+        assert "- id: test-item" in result
+        assert "--- BEGIN DEFAULT CHECKLIST ---" in result
+        assert "--- END DEFAULT CHECKLIST ---" in result
+
+    def test_contains_project_structure_context(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+
+        assert ".code-review/staging/" in result
+        assert ".code-review/cache.json" in result
+        assert ".code-review-checklist.yaml" in result
+        assert ".gitignore" in result
+
+    def test_contains_precheck_context(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+
+        assert "pre_check" in result
+        assert "Gate 0" in result
+        assert "pytest" in result
+        assert "npm test" in result
+
+    def test_contains_checklist_schema(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+
+        assert "changeset" in result
+        assert "blocking" in result
+        assert "advisory" in result
+
+    def test_contains_validation_command(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+
+        assert "code-review-skill init check" in result
+
+    def test_counts_items_correctly(self) -> None:
+        from code_review_skill.cli import _count_items
+
+        checklist = "items:\n  - id: foo\n  - id: bar\n  - id: baz\n"
+        assert _count_items(checklist) == 3
+
+    def test_counts_zero_items(self) -> None:
+        from code_review_skill.cli import _count_items
+
+        assert _count_items("items: []\n") == 0
+
+
+class TestInitCheck:
+    def test_fails_when_nothing_configured(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        from code_review_skill.cli import _cmd_init_check
+
+        with pytest.raises(SystemExit) as exc_info:
+            _cmd_init_check()
+        assert exc_info.value.code == 1
+
+    def test_passes_when_fully_configured(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        # Create staging dir
+        (tmp_path / ".code-review" / "staging").mkdir(parents=True)
+
+        # Create .gitignore
+        (tmp_path / ".gitignore").write_text(".code-review/\n")
+
+        # Create checklist with custom pre_check
+        (tmp_path / ".code-review-checklist.yaml").write_text(
+            'version: "2"\npre_check: "pytest"\nitems:\n  - id: test\n    category: design\n    scope: symbol\n    level: advisory\n    description: "test"\n    prompt: "test"\n'
+        )
+
+        from code_review_skill.cli import _cmd_init_check
+
+        # Should not raise
+        _cmd_init_check()
+
+    def test_fails_with_default_precheck(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        (tmp_path / ".code-review" / "staging").mkdir(parents=True)
+        (tmp_path / ".gitignore").write_text(".code-review/\n")
+        (tmp_path / ".code-review-checklist.yaml").write_text(
+            'version: "2"\npre_check: "make check"\nitems:\n  - id: test\n    category: design\n    scope: symbol\n    level: advisory\n    description: "test"\n    prompt: "test"\n'
+        )
+
+        from code_review_skill.cli import _cmd_init_check
+
+        with pytest.raises(SystemExit) as exc_info:
+            _cmd_init_check()
+        assert exc_info.value.code == 1
