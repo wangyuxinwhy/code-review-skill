@@ -87,7 +87,7 @@ def _filter_symbols_by_diff(symbols: Iterable[SymbolDef], diff_hunks: Sequence[t
 
 
 def extract_symbols_batch(
-    files: Sequence[str],
+    files: Iterable[str],
     diff_range: str | None = None,
 ) -> dict[str, list[SymbolDef]]:
     """Extract symbols from multiple files, optionally filtering by diff hunks.
