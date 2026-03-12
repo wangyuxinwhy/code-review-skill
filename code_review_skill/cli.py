@@ -279,12 +279,13 @@ def main() -> None:
                 print(json.dumps(symbols, indent=2))
         case "check":
             checklist_path = resolve_checklist(args.checklist)
+            diff_symbols = discover(args.diff)["symbols"] if args.diff else None
             result = check(
                 files=args.files,
                 cache_path=args.cache,
                 checklist_path=checklist_path,
                 staging_dir=args.staging,
-                diff_range=args.diff,
+                diff_symbols=diff_symbols,
             )
             print(json.dumps(result, indent=2))
         case "build":
@@ -354,7 +355,7 @@ def main() -> None:
                 cache_path=args.cache,
                 checklist_path=checklist_path,
                 staging_dir=args.staging,
-                diff_range=args.range,
+                diff_symbols=discovery["symbols"],
             )
             plan = {
                 "diff_range": args.range,

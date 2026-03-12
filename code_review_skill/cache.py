@@ -19,7 +19,6 @@ from code_review_skill.staging import (
     merge_staging,
     target_sort_key,
 )
-from code_review_skill.symbols import discover as _discover_symbols
 from code_review_skill.symbols import extract_symbols
 from code_review_skill.types import (
     CacheChecks,
@@ -179,7 +178,7 @@ def check(
     cache_path: Path,
     checklist_path: Path,
     staging_dir: Path,
-    diff_range: str | None = None,
+    diff_symbols: dict[str, list[SymbolDef]] | None = None,
 ) -> CheckOutput:
     """Compare files against cache at file and symbol level.
 
@@ -187,13 +186,13 @@ def check(
     Symbol-level: for each file, extract symbols via AST, hash each symbol,
     look up in cache["symbols"]. Pre-write staging for all cache hits.
 
-    When diff_range is provided, only symbols touched by the diff are considered.
+    When diff_symbols is provided, only those symbols are considered for review.
+    Callers should obtain diff_symbols from discover() to avoid redundant work.
     """
     cache = load_cache(cache_path, checklist_path)
 
     file_result = _check_file_cache(files, cache, staging_dir)
 
-    diff_symbols = _discover_symbols(diff_range)["symbols"] if diff_range else None
     symbol_cached = _check_symbol_cache(file_result.cached_files, cache, diff_symbols)
     symbol_review = _check_symbol_cache(file_result.review_files, cache, diff_symbols)
 

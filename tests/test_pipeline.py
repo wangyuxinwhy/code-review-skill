@@ -1581,7 +1581,7 @@ class TestWriteStagingEntry:
 
 
 class TestCheckWithDiff:
-    """Test that check() with diff_range filters symbols."""
+    """Test that check() with diff_symbols filters symbols."""
 
     SOURCE: ClassVar[str] = "def changed():\n    pass\n\ndef unchanged():\n    pass\n"
 
@@ -1596,7 +1596,7 @@ class TestCheckWithDiff:
             cache_path=tmp_path / "cache.json",
             checklist_path=checklist_path,
             staging_dir=staging_dir,
-            diff_range=None,
+            diff_symbols=None,
         )
         # Without diff, all symbols should be in review_symbols
         all_review_symbols = []
