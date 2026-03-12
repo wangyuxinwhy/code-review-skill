@@ -55,6 +55,9 @@
 ### check (cache.py)  cache.py:177-227
 **[BLOCKING single-responsibility]** Mixes cache lookup/partitioning with writing file-level staging JSON to disk. The staging side-effect should be separated from the pure partitioning logic.
 
+### write_staging_entry  staging.py:74-105
+**[BLOCKING single-responsibility]** Mixes filename derivation (match/case on stage type), directory creation (`mkdir`), and file I/O (`write_text`). Extract the filename derivation into a pure function; let the caller or a thin wrapper handle directory creation and writing.
+
 ---
 
 ## Symbol Scope - Advisory Findings (curated)
@@ -114,11 +117,11 @@
 |---|---|---|
 | Changeset | 0 | 1 |
 | File | 0 | 1 |
-| Symbol | 6 | ~40 |
-| **Total** | **6** | **~42** |
+| Symbol | 7 | ~40 |
+| **Total** | **7** | **~42** |
 
 **Top priorities:**
-1. Fix 6 blocking single-responsibility violations by extracting I/O from pure logic
+1. Fix 7 blocking single-responsibility violations by extracting I/O from pure logic
 2. Standardize `str` vs `Path` for file paths across the API surface
 3. Introduce `LineRange` type alias for `tuple[int, int]`
 4. Tighten `Mapping[str, Any]` signatures to use domain TypedDicts
