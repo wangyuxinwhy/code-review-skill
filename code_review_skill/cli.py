@@ -6,12 +6,14 @@ agents read it to learn how to use the tool autonomously.
 
 import argparse
 import json
+import shutil
 import sys
 from importlib.resources import files as pkg_files
 from pathlib import Path
 
 from code_review_skill.cache import build, check, refresh
 from code_review_skill.render import show
+from code_review_skill.staging import resolve_checklist
 from code_review_skill.symbols import (
     _filter_symbols_by_diff,
     _get_diff_hunks,
@@ -28,12 +30,20 @@ You are a code review curator. You review code against a checklist,
 orchestrate parallel subagents for large reviews, and apply your own
 judgment to curate the final result.
 
+CHECKLIST RESOLUTION (highest priority first)
+
+  1. --checklist <path>              explicit override
+  2. .code-review-checklist.yaml     project-local customization
+  3. Built-in default                zero-config, ships with package
+
+  To customize: code-review-skill init
+
 GATE 0: PRE-CHECK
 
   Mandatory in all modes. Run the pre_check command defined in the
   checklist before any LLM review:
 
-    Read the pre_check field from .claude/review/checklist.yaml
+    Read the pre_check field from the active checklist.
     If pre_check is not defined, skip Gate 0 entirely.
 
   If pre_check fails and failures are related to the files under review:
@@ -50,7 +60,7 @@ REVIEW MODES
 
 INFRASTRUCTURE
 
-  Checklist (.claude/review/checklist.yaml):
+  Checklist:
     Sole source of truth for what to check. Do not invent checks.
     Structure: pre_check, categories (design > correctness > readability),
     items (id, category, scope, level, when, prompt, description).
@@ -63,10 +73,10 @@ INFRASTRUCTURE
 
     Returns: [{ "name": "func", "type": "function", "lines": [10, 25] }]
 
-  Staging directory (.claude/review/staging/):
+  Staging directory (.code-review/staging/):
     All review findings are written here as JSON. Clean at review start:
 
-      rm -rf .claude/review/staging && mkdir -p .claude/review/staging
+      rm -rf .code-review/staging && mkdir -p .code-review/staging
 
     Check format:
       Passed/blocked (compact): { "id": "check-id", "pass": true/null }
@@ -131,6 +141,9 @@ REPORT FORMAT
   Omit all-pass symbols. No emoji.
 """
 
+DEFAULT_CACHE = Path(".code-review/cache.json")
+DEFAULT_STAGING = Path(".code-review/staging")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -148,25 +161,25 @@ def main() -> None:
     # check subcommand
     check_parser = subparsers.add_parser("check", help="Check files against cache")
     check_parser.add_argument("--files", nargs="+", required=True, help="Files to check")
-    check_parser.add_argument("--cache", type=Path, default=Path(".claude/review/cache.json"))
-    check_parser.add_argument("--checklist", type=Path, default=Path(".claude/review/checklist.yaml"))
-    check_parser.add_argument("--staging", type=Path, default=Path(".claude/review/staging"))
+    check_parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
+    check_parser.add_argument("--checklist", type=Path, default=None, help="Override checklist path")
+    check_parser.add_argument("--staging", type=Path, default=DEFAULT_STAGING)
 
     # build subcommand
     build_parser = subparsers.add_parser("build", help="Merge staging and build cache")
-    build_parser.add_argument("--staging", type=Path, default=Path(".claude/review/staging"))
-    build_parser.add_argument("--cache", type=Path, default=Path(".claude/review/cache.json"))
-    build_parser.add_argument("--checklist", type=Path, default=Path(".claude/review/checklist.yaml"))
+    build_parser.add_argument("--staging", type=Path, default=DEFAULT_STAGING)
+    build_parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
+    build_parser.add_argument("--checklist", type=Path, default=None, help="Override checklist path")
 
     # show subcommand
     show_parser = subparsers.add_parser("show", help="Show findings from cache.json")
-    show_parser.add_argument("--cache", type=Path, default=Path(".claude/review/cache.json"))
+    show_parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
 
     # refresh subcommand
     refresh_parser = subparsers.add_parser(
         "refresh", help="Self-heal cache — rescan files, match by hash, rebuild targets"
     )
-    refresh_parser.add_argument("--cache", type=Path, default=Path(".claude/review/cache.json"))
+    refresh_parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
     refresh_parser.add_argument(
         "--root",
         type=Path,
@@ -174,8 +187,12 @@ def main() -> None:
         help="Project root to scan for Python files",
     )
 
+    # init subcommand
+    subparsers.add_parser("init", help="Initialize project with checklist and .code-review/ directory")
+
     # checklist subcommand
-    subparsers.add_parser("checklist", help="Print the built-in default checklist")
+    checklist_parser = subparsers.add_parser("checklist", help="Print the active checklist")
+    checklist_parser.add_argument("--builtin", action="store_true", help="Print the built-in default checklist")
 
     args = parser.parse_args()
 
@@ -192,19 +209,21 @@ def main() -> None:
                 symbols = _filter_symbols_by_diff(symbols, diff_hunks)
             print(json.dumps(symbols, indent=2))
         case "check":
+            checklist_path = resolve_checklist(args.checklist)
             result = check(
                 files=args.files,
                 cache_path=args.cache,
-                checklist_path=args.checklist,
+                checklist_path=checklist_path,
                 staging_dir=args.staging,
             )
             print(json.dumps(result, indent=2))
         case "build":
+            checklist_path = resolve_checklist(args.checklist)
             try:
                 cache_data = build(
                     staging_dir=args.staging,
                     cache_path=args.cache,
-                    checklist_path=args.checklist,
+                    checklist_path=checklist_path,
                 )
             except ValueError as exc:
                 print(str(exc), file=sys.stderr)
@@ -244,8 +263,48 @@ def main() -> None:
                         f"  Orphaned hashes: {stats['orphaned_file_hashes']} file(s), "
                         f"{stats['orphaned_symbol_hashes']} symbol(s)"
                     )
+        case "init":
+            _cmd_init()
         case "checklist":
-            checklist_file = pkg_files("code_review_skill.data").joinpath("checklist.yaml")
-            print(checklist_file.read_text())
+            if args.builtin:
+                builtin = pkg_files("code_review_skill.data").joinpath("checklist.yaml")
+                print(builtin.read_text())
+            else:
+                checklist_path = resolve_checklist()
+                print(Path(checklist_path).read_text())
         case _:
             pass
+
+
+def _cmd_init() -> None:
+    """Initialize project with checklist and .code-review/ directory."""
+    checklist_dest = Path(".code-review-checklist.yaml")
+    code_review_dir = Path(".code-review")
+    staging_dir = code_review_dir / "staging"
+    gitignore = Path(".gitignore")
+
+    # Copy built-in checklist
+    if checklist_dest.exists():
+        print(f"Already exists: {checklist_dest}")
+    else:
+        builtin = pkg_files("code_review_skill.data").joinpath("checklist.yaml")
+        shutil.copy2(str(builtin), str(checklist_dest))
+        print(f"Created: {checklist_dest}")
+
+    # Create .code-review/staging/
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Created: {staging_dir}/")
+
+    # Add .code-review/ to .gitignore
+    marker = ".code-review/"
+    if gitignore.exists():
+        content = gitignore.read_text()
+        if marker not in content:
+            with gitignore.open("a") as f:
+                if not content.endswith("\n"):
+                    f.write("\n")
+                f.write(f"{marker}\n")
+            print(f"Added {marker} to .gitignore")
+    else:
+        gitignore.write_text(f"{marker}\n")
+        print(f"Created .gitignore with {marker}")

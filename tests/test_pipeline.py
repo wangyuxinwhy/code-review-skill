@@ -26,6 +26,7 @@ from code_review_skill.staging import (
     load_checklist,
     load_staging_files,
     merge_staging,
+    resolve_checklist,
     sort_checks,
     target_sort_key,
 )
@@ -993,6 +994,39 @@ class TestLoadChecklist:
         checklist.write_text("items: []\n")
 
         assert load_checklist(checklist)["version"] == "unknown"
+
+
+class TestResolveChecklist:
+    def test_explicit_path_exists(self, tmp_path: Path) -> None:
+        checklist = tmp_path / "custom.yaml"
+        checklist.write_text("version: 1\nitems: []\n")
+
+        result = resolve_checklist(checklist)
+
+        assert result == checklist
+
+    def test_explicit_path_not_found_raises(self, tmp_path: Path) -> None:
+        missing = tmp_path / "does_not_exist.yaml"
+
+        with pytest.raises(FileNotFoundError, match="Checklist not found"):
+            resolve_checklist(missing)
+
+    def test_local_file_found(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        local = tmp_path / ".code-review-checklist.yaml"
+        local.write_text("version: 1\nitems: []\n")
+
+        result = resolve_checklist()
+
+        assert result == Path(".code-review-checklist.yaml")
+
+    def test_falls_back_to_builtin(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        result = resolve_checklist()
+
+        assert result.exists()
+        assert "checklist.yaml" in str(result)
 
 
 class TestSortChecks:

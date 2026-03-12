@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Iterable, Mapping
+from importlib.resources import files as pkg_files
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -21,6 +22,28 @@ from code_review_skill.types import (
     SymbolTarget,
     TargetEntry,
 )
+
+LOCAL_CHECKLIST = Path(".code-review-checklist.yaml")
+
+
+def resolve_checklist(explicit: Path | None = None) -> Path:
+    """Resolve checklist path with fallback chain:
+
+    1. Explicit path (--checklist argument) — must exist if provided
+    2. .code-review-checklist.yaml (project-local customization)
+    3. Built-in default (shipped with the package)
+    """
+    if explicit is not None:
+        if not explicit.exists():
+            msg = f"Checklist not found: {explicit}"
+            raise FileNotFoundError(msg)
+        return explicit
+
+    if LOCAL_CHECKLIST.exists():
+        return LOCAL_CHECKLIST
+
+    return Path(str(pkg_files("code_review_skill.data").joinpath("checklist.yaml")))
+
 
 # --- Checklist ---
 
