@@ -16,7 +16,7 @@ import hashlib
 import json
 import subprocess
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, NamedTuple, NotRequired, TypedDict, cast
@@ -208,7 +208,7 @@ class Checklist(TypedDict):
 
 
 class CacheChecks(TypedDict):
-    checks: list[dict[str, Any]]
+    checks: list[CheckResult]
 
 
 class CacheFile(TypedDict):
@@ -221,12 +221,19 @@ class CacheFile(TypedDict):
     symbols: dict[str, CacheChecks]
 
 
+class CacheStats(TypedDict):
+    file_hit: int
+    file_miss: int
+    symbol_hit: int
+    symbol_miss: int
+
+
 class CheckOutput(TypedDict):
     cached: list[str]
     review: list[str]
     cached_symbols: dict[str, list[str]]
     review_symbols: dict[str, list[str]]
-    stats: dict[str, int]
+    stats: CacheStats
 
 
 # --- Hashing ---
@@ -274,7 +281,7 @@ def load_staging_files(staging_dir: Path) -> list[dict[str, Any]]:
 # --- Enrichment and sorting ---
 
 
-def enrich_check(check: CheckResult, checklist_items: dict[str, ChecklistItem]) -> CheckResult:
+def enrich_check(check: CheckResult, checklist_items: Mapping[str, ChecklistItem]) -> CheckResult:
     """Fill in category/level/summary/status from checklist when missing."""
     check_id = check.get("id", "")
     item = checklist_items.get(check_id)
@@ -329,13 +336,15 @@ def _extract_symbol_entries(staging: dict[str, Any]) -> list[dict[str, Any]]:
     Grouped (legacy): { "stage": "symbol", "targets": [{ "target": ..., "checks": ... }, ...] }
     Per-symbol:       { "stage": "symbol", "target": ..., "checks": [...] }
     """
-    if "targets" in staging:
-        return staging["targets"]
-    if "symbols" in staging:
-        return staging["symbols"]
-    if "target" in staging:
-        return [{"target": staging["target"], "checks": staging.get("checks", [])}]
-    return []
+    match staging:
+        case {"targets": targets}:
+            return targets
+        case {"symbols": symbols}:
+            return symbols
+        case {"target": target}:
+            return [{"target": target, "checks": staging.get("checks", [])}]
+        case _:
+            return []
 
 
 def _normalize_symbol_target(entry: dict[str, Any], fallback_file: str) -> SymbolTarget:
@@ -366,8 +375,8 @@ def _convert_annotations_to_offsets(
         check_copy = dict(check)
         if check_copy.get("annotations"):
             check_copy["annotations"] = [
-                {"offset": ann["line"] - base_line, "message": ann["message"]}
-                for ann in check_copy["annotations"]
+                {"offset": annotation["line"] - base_line, "message": annotation["message"]}
+                for annotation in check_copy["annotations"]
             ]
         result.append(check_copy)
     return result
@@ -376,17 +385,14 @@ def _convert_annotations_to_offsets(
 def _convert_offsets_to_lines(
     checks: Iterable[dict[str, Any]], base_line: int
 ) -> list[dict[str, Any]]:
-    """Convert annotation offsets back to absolute line numbers.
-
-    Inverse of _convert_annotations_to_offsets.
-    """
+    """Restore cached offset-based annotations to absolute line numbers for staging output."""
     result: list[dict[str, Any]] = []
     for check in checks:
         check_copy = dict(check)
         if check_copy.get("annotations"):
             check_copy["annotations"] = [
-                {"line": ann["offset"] + base_line, "message": ann["message"]}
-                for ann in check_copy["annotations"]
+                {"line": annotation["offset"] + base_line, "message": annotation["message"]}
+                for annotation in check_copy["annotations"]
             ]
         result.append(check_copy)
     return result
@@ -399,9 +405,8 @@ def merge_staging(
     staging_files: Iterable[dict[str, Any]],
     checklist_items: dict[str, ChecklistItem] | None = None,
 ) -> MergeResult:
-    """Summary counts checks from all symbols, including those filtered out of
-    targets as all-pass."""
-    items = checklist_items or {}
+    """Counts include all-pass symbols that are filtered out of the returned targets."""
+    checklist_lookup = checklist_items or {}
     all_entries: list[TargetEntry] = []
     filtered_targets: list[TargetEntry] = []
     symbols_reviewed = 0
@@ -410,7 +415,7 @@ def merge_staging(
         stage = staging["stage"]
 
         if stage in ("changeset", "file"):
-            checks = [enrich_check(check, items) for check in staging.get("checks", [])]
+            checks = [enrich_check(check, checklist_lookup) for check in staging.get("checks", [])]
             entry = TargetEntry(
                 target=staging["target"],
                 checks=sort_checks(checks),
@@ -420,11 +425,11 @@ def merge_staging(
 
         elif stage == "symbol":
             file_path = staging.get("file", "")
-            raw_targets = _extract_symbol_entries(staging)
-            for symbol_entry in raw_targets:
+            symbol_entries = _extract_symbol_entries(staging)
+            for symbol_entry in symbol_entries:
                 symbols_reviewed += 1
                 target = _normalize_symbol_target(symbol_entry, file_path)
-                checks = [enrich_check(check, items) for check in symbol_entry.get("checks", [])]
+                checks = [enrich_check(check, checklist_lookup) for check in symbol_entry.get("checks", [])]
                 sorted_checks = sort_checks(checks)
                 entry = TargetEntry(target=target, checks=sorted_checks)
                 all_entries.append(entry)
@@ -445,28 +450,24 @@ def _count_checks(entries: Iterable[TargetEntry], symbols_reviewed: int) -> Revi
     for entry in entries:
         for check in entry["checks"]:
             pass_value = check.get("pass")
-
-            if pass_value is True:
-                passed += 1
-                continue
-            if pass_value is None and "status" not in check:
-                blocked += 1
-                continue
-
             status = check.get("status")
             if status is None:
-                status = "failed" if pass_value is False else "blocked"
+                if pass_value is True:
+                    status = "passed"
+                elif pass_value is False:
+                    status = "failed"
+                else:
+                    status = "blocked"
             level = check.get("level", "advisory")
 
-            match status:
-                case "passed":
+            match (status, level):
+                case ("passed", _):
                     passed += 1
-                case "failed":
-                    if level == "blocking":
-                        blocking_failures += 1
-                    else:
-                        advisory_failures += 1
-                case "blocked":
+                case ("failed", "blocking"):
+                    blocking_failures += 1
+                case ("failed", _):
+                    advisory_failures += 1
+                case ("blocked", _):
                     blocked += 1
 
     return ReviewSummary(
@@ -507,7 +508,7 @@ class _FileCacheResult(NamedTuple):
 class _SymbolCacheResult(NamedTuple):
     cached_syms: dict[str, list[str]]
     review_syms: dict[str, list[str]]
-    symbol_targets: list[dict[str, Any]]
+    symbol_targets: list[TargetEntry]
     hit: int
     miss: int
 
@@ -545,25 +546,22 @@ def _check_file_cache(
 
 
 def _check_symbol_cache(
-    file_list: list[str],
+    file_list: Sequence[str],
     cache: CacheFile | None,
-    *,
-    is_review_file: bool,
 ) -> _SymbolCacheResult:
     """Look up per-symbol content hashes against cache for a list of files.
 
-    When is_review_file is True, unhashed/missed symbols are tracked in review_syms.
-    When False (cached files), only cached symbols are tracked.
+    Uncached symbols are tracked in review_syms; the caller decides which to use.
     """
     cached_syms: dict[str, list[str]] = {}
     review_syms: dict[str, list[str]] = {}
-    symbol_targets: list[dict[str, Any]] = []
+    symbol_targets: list[TargetEntry] = []
     hit = 0
     miss = 0
 
     for file_str in file_list:
         file_path = Path(file_str)
-        if is_review_file and not file_path.exists():
+        if not file_path.exists():
             continue
         try:
             source = file_path.read_text()
@@ -577,8 +575,7 @@ def _check_symbol_cache(
             try:
                 symbol_hash = compute_symbol_hash(file_path, symbol["lines"])
             except (IndexError, ValueError):
-                if is_review_file:
-                    file_review.append(symbol["name"])
+                file_review.append(symbol["name"])
                 miss += 1
                 continue
             symbol_entry = cache["symbols"].get(symbol_hash) if cache else None
@@ -587,8 +584,7 @@ def _check_symbol_cache(
                 hit += 1
                 symbol_targets.append(_restore_symbol_target(file_str, symbol, symbol_entry))
             else:
-                if is_review_file:
-                    file_review.append(symbol["name"])
+                file_review.append(symbol["name"])
                 miss += 1
         if file_cached:
             cached_syms[file_str] = file_cached
@@ -614,14 +610,14 @@ def check(
 
     file_result = _check_file_cache(files, cache, staging_dir)
 
-    sym_cached = _check_symbol_cache(file_result.cached, cache, is_review_file=False)
-    sym_review = _check_symbol_cache(file_result.review, cache, is_review_file=True)
+    symbol_cached = _check_symbol_cache(file_result.cached, cache)
+    symbol_review = _check_symbol_cache(file_result.review, cache)
 
-    cached_symbols = {**sym_cached.cached_syms, **sym_review.cached_syms}
-    review_symbols = sym_review.review_syms
-    symbol_hit = sym_cached.hit + sym_review.hit
-    symbol_miss = sym_cached.miss + sym_review.miss
-    all_symbol_targets = sym_cached.symbol_targets + sym_review.symbol_targets
+    cached_symbols = {**symbol_cached.cached_syms, **symbol_review.cached_syms}
+    review_symbols = symbol_review.review_syms
+    symbol_hit = symbol_cached.hit + symbol_review.hit
+    symbol_miss = symbol_cached.miss + symbol_review.miss
+    all_symbol_targets = symbol_cached.symbol_targets + symbol_review.symbol_targets
 
     # Write symbol-cached.json
     if all_symbol_targets:
@@ -634,12 +630,12 @@ def check(
         review=file_result.review,
         cached_symbols=cached_symbols,
         review_symbols=review_symbols,
-        stats={
-            "file_hit": file_result.hit,
-            "file_miss": file_result.miss,
-            "symbol_hit": symbol_hit,
-            "symbol_miss": symbol_miss,
-        },
+        stats=CacheStats(
+            file_hit=file_result.hit,
+            file_miss=file_result.miss,
+            symbol_hit=symbol_hit,
+            symbol_miss=symbol_miss,
+        ),
     )
 
 
@@ -658,27 +654,27 @@ def _write_cached_staging(file_str: str, cache_checks: CacheChecks, staging_dir:
 
 def _restore_symbol_target(
     file_str: str, symbol_def: SymbolDef, cache_checks: CacheChecks
-) -> dict[str, Any]:
+) -> TargetEntry:
     """Reconstruct a symbol staging target from cache, converting offsets to lines."""
     checks_with_lines = _convert_offsets_to_lines(
         cache_checks["checks"], base_line=symbol_def["lines"][0]
     )
-    return {
-        "target": {
-            "type": "symbol",
-            "file": file_str,
-            "symbol": symbol_def["name"],
-            "lines": [symbol_def["lines"][0], symbol_def["lines"][1]],
-        },
-        "checks": checks_with_lines,
-    }
+    return TargetEntry(
+        target=SymbolTarget(
+            type="symbol",
+            file=file_str,
+            symbol=symbol_def["name"],
+            lines=(symbol_def["lines"][0], symbol_def["lines"][1]),
+        ),
+        checks=cast(list[CheckResult], checks_with_lines),
+    )
 
 
 # --- Cache: build ---
 
 
 def _build_files_cache(staging_files: Iterable[dict[str, Any]]) -> dict[str, CacheChecks]:
-    """Build the files cache section: content hash -> checks with offsets."""
+    """Only processes entries with stage='file'; skips others."""
     files_cache: dict[str, CacheChecks] = {}
     for staging in staging_files:
         if staging.get("stage") != "file":
@@ -694,13 +690,14 @@ def _build_files_cache(staging_files: Iterable[dict[str, Any]]) -> dict[str, Cac
 
 
 def _build_symbols_cache(staging_files: Iterable[dict[str, Any]]) -> dict[str, CacheChecks]:
-    """Build the symbols cache section: content hash -> checks with offsets."""
+    """Handles both grouped and per-symbol staging formats; silently skips entries
+    with missing files or unparseable line ranges."""
     symbols_cache: dict[str, CacheChecks] = {}
     for staging in staging_files:
         if staging.get("stage") != "symbol":
             continue
-        raw_targets = _extract_symbol_entries(staging)
-        for symbol_entry in raw_targets:
+        symbol_entries = _extract_symbol_entries(staging)
+        for symbol_entry in symbol_entries:
             target = symbol_entry.get("target", symbol_entry)
             file_str = target.get("file", staging.get("file", ""))
             lines = target.get("lines", [0, 0])
@@ -726,19 +723,19 @@ def build(
     cache_path: Path,
     checklist_path: Path,
 ) -> CacheFile:
-    """Merge staging files and build combined cache.json v3."""
+    """Load staging files, enrich checks from checklist, assemble hash-keyed
+    cache sections, and write the combined cache.json v3 to disk."""
     staging_files = load_staging_files(staging_dir)
     if not staging_files:
-        print("No staging files found.", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError("No staging files found")
 
     checklist = load_checklist(checklist_path)
     checklist_version = checklist["version"]
     targets, symbols_reviewed, summary = merge_staging(staging_files, checklist["items"])
 
     # Convert annotations from absolute line to offset in targets
-    for entry in targets:
-        target = entry["target"]
+    for target_entry in targets:
+        target = target_entry["target"]
         if target["type"] == "symbol":
             base_line = target["lines"][0]
         elif target["type"] == "file":
@@ -747,8 +744,8 @@ def build(
             continue
         # list[CheckResult] <-> list[dict[str, Any]]: TypedDict is not assignable to
         # dict[str, Any] in basedpyright strict mode, but compatible at runtime
-        checks = cast(list[dict[str, Any]], entry["checks"])
-        entry["checks"] = cast(
+        checks = cast(list[dict[str, Any]], target_entry["checks"])
+        target_entry["checks"] = cast(
             list[CheckResult], _convert_annotations_to_offsets(checks, base_line)
         )
 
@@ -767,16 +764,6 @@ def build(
     )
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(cache_data, indent=2, ensure_ascii=False) + "\n")
-
-    print(f"Build complete: {len(staging_files)} staging files -> {cache_path}")
-    print(
-        f"  {summary['blocking_failures']} blocking, "
-        f"{summary['advisory_failures']} advisory, "
-        f"{summary['passed']} passed, "
-        f"{summary['blocked']} blocked"
-    )
-    print(f"  Symbols reviewed: {symbols_reviewed}")
-    print(f"  Cache: {len(files_cache)} file(s), {len(symbols_cache)} symbol(s)")
 
     return cache_data
 
@@ -837,10 +824,27 @@ def main() -> None:
             )
             print(json.dumps(result, indent=2))
         case "build":
-            build(
-                staging_dir=args.staging,
-                cache_path=args.cache,
-                checklist_path=args.checklist,
+            try:
+                cache_data = build(
+                    staging_dir=args.staging,
+                    cache_path=args.cache,
+                    checklist_path=args.checklist,
+                )
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                sys.exit(1)
+            summary = cache_data["summary"]
+            print(f"Build complete: {args.cache}")
+            print(
+                f"  {summary['blocking_failures']} blocking, "
+                f"{summary['advisory_failures']} advisory, "
+                f"{summary['passed']} passed, "
+                f"{summary['blocked']} blocked"
+            )
+            print(f"  Symbols reviewed: {summary['symbols_reviewed']}")
+            print(
+                f"  Cache: {len(cache_data['files'])} file(s), "
+                f"{len(cache_data['symbols'])} symbol(s)"
             )
         case _:
             pass

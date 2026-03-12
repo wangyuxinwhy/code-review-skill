@@ -1339,7 +1339,7 @@ class TestRestoreSymbolTarget:
         result = _restore_symbol_target("src/a.py", symbol_def, cache_checks)
 
         assert result["target"]["symbol"] == "foo"
-        assert result["target"]["lines"] == [10, 20]
+        assert result["target"]["lines"] == (10, 20)
         assert result["checks"][0]["annotations"][0]["line"] == 13  # 10 + 3
 
     def test_preserves_checks_without_annotations(self) -> None:
