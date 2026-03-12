@@ -1,10 +1,16 @@
 """AST-based symbol extraction and diff filtering."""
 
+from __future__ import annotations
+
 import ast
 import subprocess
-from collections.abc import Iterable, Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-from code_review_skill.types import SymbolDef
+from code_review_skill.types import DiscoverOutput, SymbolDef
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 
 def extract_symbols(source: str) -> list[SymbolDef]:
@@ -78,3 +84,50 @@ def _ranges_overlap(a: tuple[int, int], b: tuple[int, int]) -> bool:
 
 def _filter_symbols_by_diff(symbols: Iterable[SymbolDef], diff_hunks: Sequence[tuple[int, int]]) -> list[SymbolDef]:
     return [symbol for symbol in symbols if any(_ranges_overlap(symbol["lines"], hunk) for hunk in diff_hunks)]
+
+
+def extract_symbols_batch(
+    files: Sequence[str],
+    diff_range: str | None = None,
+) -> dict[str, list[SymbolDef]]:
+    """Extract symbols from multiple files, optionally filtering by diff hunks.
+
+    Files that don't exist or fail to parse are silently skipped.
+    """
+    result: dict[str, list[SymbolDef]] = {}
+    for file_str in files:
+        file_path = Path(file_str)
+        if not file_path.exists():
+            continue
+        try:
+            source = file_path.read_text()
+        except OSError:
+            continue
+        symbols = extract_symbols(source)
+        if diff_range:
+            diff_hunks = _get_diff_hunks(file_str, diff_range)
+            symbols = _filter_symbols_by_diff(symbols, diff_hunks)
+        if symbols:
+            result[file_str] = symbols
+    return result
+
+
+def discover_changed_files(diff_range: str) -> list[str]:
+    """Run git diff --name-only to find changed Python files."""
+    try:
+        proc = subprocess.run(
+            ["git", "diff", diff_range, "--name-only", "--diff-filter=ACMR"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return []
+    return [f for f in proc.stdout.strip().splitlines() if f.endswith(".py")]
+
+
+def discover(diff_range: str) -> DiscoverOutput:
+    """Discover changed files and their diff-touched symbols."""
+    files = discover_changed_files(diff_range)
+    symbols = extract_symbols_batch(files, diff_range=diff_range)
+    return DiscoverOutput(files=files, symbols=symbols)

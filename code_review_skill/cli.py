@@ -10,13 +10,17 @@ import sys
 from importlib.resources import files as pkg_files
 from pathlib import Path
 
+import yaml
+
 from code_review_skill.cache import build, check, refresh
 from code_review_skill.render import show
-from code_review_skill.staging import resolve_checklist
+from code_review_skill.staging import resolve_checklist, write_staging_entry
 from code_review_skill.symbols import (
     _filter_symbols_by_diff,
     _get_diff_hunks,
+    discover,
     extract_symbols,
+    extract_symbols_batch,
 )
 
 DESCRIPTION = """\
@@ -68,15 +72,34 @@ INFRASTRUCTURE
   Symbol extraction (code-review-skill symbols):
     AST-based deterministic symbol boundary detection.
 
+    Single file:
       code-review-skill symbols --file <path>
       code-review-skill symbols --file <path> --diff HEAD
 
-    Returns: [{ "name": "func", "type": "function", "lines": [10, 25] }]
+    Batch (grouped output by file):
+      code-review-skill symbols --files <path1> <path2> ...
+      code-review-skill symbols --files <path1> <path2> --diff main
+
+    Single-file returns: [{ "name": "func", "type": "function", "lines": [10, 25] }]
+    Batch returns: { "path/a.py": [symbols...], "path/b.py": [symbols...] }
+
+  Discovery (code-review-skill discover):
+    Find changed files and diff-touched symbols for a git range.
+
+      code-review-skill discover main
+      code-review-skill discover HEAD~3..HEAD
+
+    Returns: { "files": ["a.py", ...], "symbols": { "a.py": [symbols...] } }
+    files = all changed Python files; symbols = only files with diff-touched symbols.
 
   Staging directory (.code-review/staging/):
     All review findings are written here as JSON. Clean at review start:
 
       rm -rf .code-review/staging && mkdir -p .code-review/staging
+
+    Write findings via the stage command (reads JSON from stdin):
+
+      echo '<json>' | code-review-skill stage
 
     Check format:
       Passed/blocked (compact): { "id": "check-id", "pass": true/null }
@@ -100,19 +123,16 @@ INFRASTRUCTURE
 
 PIPELINE WORKFLOW
 
-  Step 1: Discover symbols
-    code-review-skill symbols --file <path>
+  Quick path (recommended):
+    code-review-skill review <range>
+    Returns a complete review plan with changed files, diff-touched symbols,
+    and cache status. Then dispatch subagents per review_symbols.
 
-  Step 2: Check cache
-    code-review-skill check --files <paths...>
-
-  Step 3: Dispatch subagents
-    File subagents for files in "review_files" (file-scope checks only).
-    Symbol subagents for symbols in "review_symbols" (AST boundaries).
-    Skip cached files and cached symbols (staging pre-written).
-
-  Step 4 (MANDATORY): Build cache
-    code-review-skill build
+  Manual path (step by step):
+    Step 1: code-review-skill discover <range>
+    Step 2: code-review-skill check --files <paths...> --diff <range>
+    Step 3: Dispatch subagents, write findings via: code-review-skill stage
+    Step 4: code-review-skill build
 
 PRINCIPLES
 
@@ -126,7 +146,7 @@ PRINCIPLES
     Subagents read the checklist themselves.
 
   Caching:
-    MANDATORY: always run check before dispatching review.
+    MANDATORY: always run check (or review) before dispatching review.
     MANDATORY: always run build after staging is complete.
 
   Curator judgment:
@@ -154,13 +174,16 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # symbols subcommand
-    symbols_parser = subparsers.add_parser("symbols", help="Extract symbols from a Python file using AST")
-    symbols_parser.add_argument("--file", required=True, help="Python file to analyze")
+    symbols_parser = subparsers.add_parser("symbols", help="Extract symbols from Python files using AST")
+    symbols_group = symbols_parser.add_mutually_exclusive_group(required=True)
+    symbols_group.add_argument("--file", help="Single Python file to analyze")
+    symbols_group.add_argument("--files", nargs="+", help="Multiple Python files to analyze (grouped output)")
     symbols_parser.add_argument("--diff", default=None, help="Git diff range to filter by changed hunks")
 
     # check subcommand
     check_parser = subparsers.add_parser("check", help="Check files against cache")
     check_parser.add_argument("--files", nargs="+", required=True, help="Files to check")
+    check_parser.add_argument("--diff", default=None, help="Git diff range to filter symbols by changed hunks")
     check_parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
     check_parser.add_argument("--checklist", type=Path, default=None, help="Override checklist path")
     check_parser.add_argument("--staging", type=Path, default=DEFAULT_STAGING)
@@ -200,6 +223,38 @@ def main() -> None:
         help="Optional action: 'check' to verify project setup",
     )
 
+    # discover subcommand
+    discover_parser = subparsers.add_parser(
+        "discover",
+        help="Discover changed files and diff-touched symbols for a git range",
+    )
+    discover_parser.add_argument(
+        "range",
+        help="Git diff range (e.g., 'main', 'HEAD~3..HEAD')",
+    )
+
+    # stage subcommand
+    stage_parser = subparsers.add_parser(
+        "stage",
+        help="Write a staging entry from stdin JSON",
+    )
+    stage_parser.add_argument("--staging", type=Path, default=DEFAULT_STAGING)
+
+    # review subcommand
+    review_parser = subparsers.add_parser(
+        "review",
+        help="Orchestrate full review: discover → check cache → output review plan",
+    )
+    review_parser.add_argument(
+        "range",
+        nargs="?",
+        default="HEAD",
+        help="Git diff range (default: HEAD)",
+    )
+    review_parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
+    review_parser.add_argument("--checklist", type=Path, default=None)
+    review_parser.add_argument("--staging", type=Path, default=DEFAULT_STAGING)
+
     # checklist subcommand
     checklist_parser = subparsers.add_parser("checklist", help="Print the active checklist")
     checklist_parser.add_argument("--builtin", action="store_true", help="Print the built-in default checklist")
@@ -208,16 +263,20 @@ def main() -> None:
 
     match args.command:
         case "symbols":
-            file_path = Path(args.file)
-            if not file_path.exists():
-                print(f"File not found: {args.file}", file=sys.stderr)
-                sys.exit(1)
-            source = file_path.read_text()
-            symbols = extract_symbols(source)
-            if args.diff:
-                diff_hunks = _get_diff_hunks(args.file, args.diff)
-                symbols = _filter_symbols_by_diff(symbols, diff_hunks)
-            print(json.dumps(symbols, indent=2))
+            if args.files:
+                result = extract_symbols_batch(args.files, diff_range=args.diff)
+                print(json.dumps(result, indent=2))
+            else:
+                file_path = Path(args.file)
+                if not file_path.exists():
+                    print(f"File not found: {args.file}", file=sys.stderr)
+                    sys.exit(1)
+                source = file_path.read_text()
+                symbols = extract_symbols(source)
+                if args.diff:
+                    diff_hunks = _get_diff_hunks(args.file, args.diff)
+                    symbols = _filter_symbols_by_diff(symbols, diff_hunks)
+                print(json.dumps(symbols, indent=2))
         case "check":
             checklist_path = resolve_checklist(args.checklist)
             result = check(
@@ -225,6 +284,7 @@ def main() -> None:
                 cache_path=args.cache,
                 checklist_path=checklist_path,
                 staging_dir=args.staging,
+                diff_range=args.diff,
             )
             print(json.dumps(result, indent=2))
         case "build":
@@ -274,6 +334,39 @@ def main() -> None:
                         f"  Orphaned hashes: {stats['orphaned_file_hashes']} file(s), "
                         f"{stats['orphaned_symbol_hashes']} symbol(s)"
                     )
+        case "discover":
+            discovery = discover(args.range)
+            print(json.dumps(discovery, indent=2))
+        case "stage":
+            raw = sys.stdin.read()
+            try:
+                entry = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                print(f"Invalid JSON on stdin: {exc}", file=sys.stderr)
+                sys.exit(1)
+            path = write_staging_entry(args.staging, entry)
+            print(json.dumps({"written": str(path)}))
+        case "review":
+            checklist_path = resolve_checklist(args.checklist)
+            discovery = discover(args.range)
+            check_result = check(
+                files=discovery["files"],
+                cache_path=args.cache,
+                checklist_path=checklist_path,
+                staging_dir=args.staging,
+                diff_range=args.range,
+            )
+            plan = {
+                "diff_range": args.range,
+                "changed_files": discovery["files"],
+                "diff_symbols": discovery["symbols"],
+                "review_files": check_result["review_files"],
+                "cached_files": check_result["cached_files"],
+                "review_symbols": check_result["review_symbols"],
+                "cached_symbols": check_result["cached_symbols"],
+                "stats": check_result["stats"],
+            }
+            print(json.dumps(plan, indent=2))
         case "init":
             if args.init_action == "check":
                 _cmd_init_check()
@@ -440,7 +533,6 @@ def _cmd_init_check() -> None:
     # Check checklist file exists and parses
     if checklist_path.exists():
         try:
-            import yaml
             data = yaml.safe_load(checklist_path.read_text())
             items = data.get("items", [])
             pre_check = data.get("pre_check", "")

@@ -48,6 +48,11 @@ class SymbolDef(TypedDict):
     lines: tuple[int, int]
 
 
+class DiscoverOutput(TypedDict):
+    files: list[str]
+    symbols: dict[str, list[SymbolDef]]
+
+
 # --- Check ---
 
 

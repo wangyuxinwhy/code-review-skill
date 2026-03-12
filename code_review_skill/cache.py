@@ -19,6 +19,7 @@ from code_review_skill.staging import (
     merge_staging,
     target_sort_key,
 )
+from code_review_skill.symbols import discover as _discover_symbols
 from code_review_skill.symbols import extract_symbols
 from code_review_skill.types import (
     CacheChecks,
@@ -119,9 +120,12 @@ def _check_file_cache(
 def _check_symbol_cache(
     file_list: Sequence[str],
     cache: CacheFile | None,
+    diff_symbols: dict[str, list[SymbolDef]] | None = None,
 ) -> _SymbolCacheResult:
     """Look up per-symbol content hashes against cache for a list of files.
 
+    When diff_symbols is provided, only symbols that appear in the diff are
+    considered. This filters out unchanged symbols from the review list.
     Uncached symbols are tracked in review_symbols; the caller decides which to use.
     """
     cached_symbols: dict[str, list[str]] = {}
@@ -139,6 +143,11 @@ def _check_symbol_cache(
             symbols = extract_symbols(source)
         except OSError:
             continue
+
+        # When diff_symbols is provided, only consider symbols touched by the diff
+        if diff_symbols is not None:
+            diff_names = {s["name"] for s in diff_symbols.get(file_str, [])}
+            symbols = [s for s in symbols if s["name"] in diff_names]
 
         file_cached: list[str] = []
         file_review: list[str] = []
@@ -170,19 +179,23 @@ def check(
     cache_path: Path,
     checklist_path: Path,
     staging_dir: Path,
+    diff_range: str | None = None,
 ) -> CheckOutput:
     """Compare files against cache at file and symbol level.
 
     File-level: hash entire file, look up in cache["files"].
     Symbol-level: for each file, extract symbols via AST, hash each symbol,
     look up in cache["symbols"]. Pre-write staging for all cache hits.
+
+    When diff_range is provided, only symbols touched by the diff are considered.
     """
     cache = load_cache(cache_path, checklist_path)
 
     file_result = _check_file_cache(files, cache, staging_dir)
 
-    symbol_cached = _check_symbol_cache(file_result.cached_files, cache)
-    symbol_review = _check_symbol_cache(file_result.review_files, cache)
+    diff_symbols = _discover_symbols(diff_range)["symbols"] if diff_range else None
+    symbol_cached = _check_symbol_cache(file_result.cached_files, cache, diff_symbols)
+    symbol_review = _check_symbol_cache(file_result.review_files, cache, diff_symbols)
 
     cached_symbols = {**symbol_cached.cached_symbols, **symbol_review.cached_symbols}
     review_symbols = symbol_review.review_symbols
