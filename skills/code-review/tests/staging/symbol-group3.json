@@ -1,0 +1,22 @@
+{
+  "stage": "symbol",
+  "targets": [
+    {
+      "target": { "type": "symbol", "file": "packages/timo-lark-store/src/timo_lark_store/table.py", "symbol": "Pullable", "lines": [233, 235] },
+      "checks": [
+        { "id": "single-responsibility", "category": "design", "level": "blocking", "summary": "Single responsibility", "pass": true, "status": "passed", "note": "Single-method protocol." },
+        { "id": "type-annotations", "category": "correctness", "level": "advisory", "summary": "Fully annotated", "pass": true, "status": "passed", "note": "Complete annotations." },
+        { "id": "naming-clarity", "category": "readability", "level": "advisory", "summary": "Names are clear", "pass": true, "status": "passed", "note": "Pullable is clear." }
+      ]
+    },
+    {
+      "target": { "type": "symbol", "file": "packages/timo-lark-store/src/timo_lark_store/table.py", "symbol": "Beat", "lines": [238, 265] },
+      "checks": [
+        { "id": "single-responsibility", "category": "design", "level": "blocking", "summary": "Single responsibility", "pass": true, "status": "passed", "note": "Manages periodic polling lifecycle." },
+        { "id": "constructor-purity", "category": "design", "level": "blocking", "summary": "__init__ purity", "pass": true, "status": "passed", "note": "Pure DI." },
+        { "id": "type-annotations", "category": "correctness", "level": "advisory", "summary": "Fully annotated", "pass": true, "status": "passed", "note": "Modern syntax." },
+        { "id": "naming-clarity", "category": "readability", "level": "advisory", "summary": "Names are clear", "pass": true, "status": "passed", "note": "Beat, _target, _task all clear." }
+      ]
+    }
+  ]
+}

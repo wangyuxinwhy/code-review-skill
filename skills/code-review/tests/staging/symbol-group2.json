@@ -1,0 +1,30 @@
+{
+  "stage": "symbol",
+  "targets": [
+    {
+      "target": { "type": "symbol", "file": "packages/timo-lark-store/src/timo_lark_store/table.py", "symbol": "Bitable.__init__", "lines": [128, 133] },
+      "checks": [
+        { "id": "constructor-purity", "category": "design", "level": "blocking", "summary": "__init__ purity", "pass": false, "status": "failed", "note": "Union type Iterable[Table] | None in __init__. Default resolution 'tables or ()'. Fix: use exact type.", "annotations": [{ "line": 129, "message": "union type; use exact type" }, { "line": 132, "message": "default resolution; move to classmethod" }] },
+        { "id": "single-responsibility", "category": "design", "level": "blocking", "summary": "Single responsibility", "pass": true, "status": "passed", "note": "Only assigns dependencies." },
+        { "id": "type-annotations", "category": "correctness", "level": "advisory", "summary": "Fully annotated", "pass": null, "status": "blocked", "note": "Blocked by constructor-purity failure." },
+        { "id": "naming-clarity", "category": "readability", "level": "advisory", "summary": "Names are clear", "pass": null, "status": "blocked", "note": "Blocked by constructor-purity failure." }
+      ]
+    },
+    {
+      "target": { "type": "symbol", "file": "packages/timo-lark-store/src/timo_lark_store/table.py", "symbol": "Bitable.create", "lines": [146, 150] },
+      "checks": [
+        { "id": "single-responsibility", "category": "design", "level": "blocking", "summary": "Single responsibility", "pass": true, "status": "passed", "note": "Smart constructor." },
+        { "id": "type-annotations", "category": "correctness", "level": "advisory", "summary": "Fully annotated", "pass": true, "status": "passed", "note": "Modern syntax." },
+        { "id": "naming-clarity", "category": "readability", "level": "advisory", "summary": "Names are clear", "pass": true, "status": "passed", "note": "Clear and semantic." }
+      ]
+    },
+    {
+      "target": { "type": "symbol", "file": "packages/timo-lark-store/src/timo_lark_store/table.py", "symbol": "Bitable.pull", "lines": [152, 170] },
+      "checks": [
+        { "id": "single-responsibility", "category": "design", "level": "blocking", "summary": "Single responsibility", "pass": true, "status": "passed", "note": "Orchestrates sync." },
+        { "id": "type-annotations", "category": "correctness", "level": "advisory", "summary": "Fully annotated", "pass": true, "status": "passed", "note": "Modern syntax." },
+        { "id": "naming-clarity", "category": "readability", "level": "advisory", "summary": "Names are clear", "pass": true, "status": "passed", "note": "Self-documenting." }
+      ]
+    }
+  ]
+}

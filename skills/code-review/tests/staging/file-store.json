@@ -1,0 +1,19 @@
+{
+  "stage": "file",
+  "target": { "type": "file", "file": "packages/timo-lark-store/src/timo_lark_store/store.py" },
+  "checks": [
+    {
+      "id": "module-cohesion",
+      "category": "design",
+      "level": "advisory",
+      "summary": "Module has a focused, cohesive responsibility",
+      "pass": true,
+      "status": "passed",
+      "note": "Cohesive around Bitable-to-Artifact transformation."
+    }
+  ],
+  "changed_symbols": [
+    { "name": "parse_term", "type": "function", "lines": [54, 58] },
+    { "name": "BitableAdapter.__call__", "type": "method", "lines": [27, 42] }
+  ]
+}

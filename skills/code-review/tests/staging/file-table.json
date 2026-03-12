@@ -1,0 +1,23 @@
+{
+  "stage": "file",
+  "target": { "type": "file", "file": "packages/timo-lark-store/src/timo_lark_store/table.py" },
+  "checks": [
+    {
+      "id": "module-cohesion",
+      "category": "design",
+      "level": "advisory",
+      "summary": "Module has a focused, cohesive responsibility",
+      "pass": true,
+      "status": "passed",
+      "note": "All classes cohesive around Lark table data management."
+    }
+  ],
+  "changed_symbols": [
+    { "name": "Bitable.__init__", "type": "method", "lines": [128, 133] },
+    { "name": "Bitable.create", "type": "method", "lines": [146, 150] },
+    { "name": "Bitable.pull", "type": "method", "lines": [152, 170] },
+    { "name": "Bitable.add_table", "type": "method", "lines": [190, 194] },
+    { "name": "Pullable", "type": "class", "lines": [233, 235] },
+    { "name": "Beat", "type": "class", "lines": [238, 265] }
+  ]
+}

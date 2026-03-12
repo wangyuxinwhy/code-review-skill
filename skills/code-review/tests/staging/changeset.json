@@ -1,0 +1,15 @@
+{
+  "stage": "changeset",
+  "target": { "type": "changeset" },
+  "checks": [
+    {
+      "id": "dependency-direction",
+      "category": "design",
+      "level": "blocking",
+      "summary": "No dependency direction violations",
+      "pass": true,
+      "status": "passed",
+      "note": "Settings removed from package. No circular or upward dependencies."
+    }
+  ]
+}

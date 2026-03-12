@@ -1,0 +1,21 @@
+{
+  "stage": "symbol",
+  "targets": [
+    {
+      "target": { "type": "symbol", "file": "packages/timo-lark-store/src/timo_lark_store/store.py", "symbol": "parse_term", "lines": [54, 58] },
+      "checks": [
+        { "id": "single-responsibility", "category": "design", "level": "blocking", "summary": "Single responsibility", "pass": true, "status": "passed", "note": "Parses a single record into a Term." },
+        { "id": "type-annotations", "category": "correctness", "level": "advisory", "summary": "Fully annotated", "pass": true, "status": "passed", "note": "Modern syntax used." },
+        { "id": "naming-clarity", "category": "readability", "level": "advisory", "summary": "Names are clear", "pass": true, "status": "passed", "note": "All names self-documenting." }
+      ]
+    },
+    {
+      "target": { "type": "symbol", "file": "packages/timo-lark-store/src/timo_lark_store/store.py", "symbol": "BitableAdapter.__call__", "lines": [27, 42] },
+      "checks": [
+        { "id": "single-responsibility", "category": "design", "level": "blocking", "summary": "Single responsibility", "pass": true, "status": "passed", "note": "Orchestrates table-to-artifact transformation." },
+        { "id": "type-annotations", "category": "correctness", "level": "advisory", "summary": "Fully annotated", "pass": true, "status": "passed", "note": "Modern syntax used." },
+        { "id": "naming-clarity", "category": "readability", "level": "advisory", "summary": "Names are clear", "pass": true, "status": "passed", "note": "All names self-documenting." }
+      ]
+    }
+  ]
+}
