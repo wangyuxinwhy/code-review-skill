@@ -817,15 +817,20 @@ def _annotate_source(
     return "\n".join(out)
 
 
-def show(cache_path: Path) -> str:
+def show(cache_path: Path, root: Path | None = None) -> str:
     """Render actionable findings as annotated source for curator review.
 
-    Reads cache.json, filters to failed/blocked checks, reads source files,
-    and produces a diagnostic report with inline annotations on the relevant
-    source lines.
+    Auto-refreshes the cache before rendering to ensure file paths and line
+    numbers are current. Reads cache.json, filters to failed/blocked checks,
+    reads source files, and produces a diagnostic report with inline annotations.
     """
     if not cache_path.exists():
         raise FileNotFoundError(f"Cache file not found: {cache_path}")
+
+    # Auto-refresh: heal stale paths/line numbers before rendering
+    resolved_root = (root or Path(".")).resolve()
+    refresh(cache_path, resolved_root)
+
     data = json.loads(cache_path.read_text())
     if data.get("version") != "3":
         raise ValueError(f"Unsupported cache version: {data.get('version')}")
@@ -904,6 +909,7 @@ class RefreshStats(TypedDict):
     targets_after: int
     orphaned_file_hashes: int
     orphaned_symbol_hashes: int
+    fresh: bool
 
 
 def _discover_python_files(root: Path) -> list[Path]:
@@ -917,13 +923,47 @@ def _discover_python_files(root: Path) -> list[Path]:
     return sorted(results)
 
 
+def _verify_targets(data: CacheFile, root: Path) -> bool:
+    """Fast path: check if all existing targets still have matching content hashes.
+
+    Returns True if cache is fresh (all hashes match current files), False if stale.
+    """
+    files_cache = data.get("files", {})
+    symbols_cache = data.get("symbols", {})
+
+    for target_entry in data.get("targets", []):
+        target = target_entry["target"]
+
+        match target:
+            case {"type": "file", "file": file_str}:
+                file_path = root / file_str
+                if not file_path.exists():
+                    return False
+                if compute_file_hash(file_path) not in files_cache:
+                    return False
+
+            case {"type": "symbol", "file": file_str, "lines": lines}:
+                file_path = root / file_str
+                if not file_path.exists():
+                    return False
+                try:
+                    if compute_symbol_hash(file_path, tuple(lines)) not in symbols_cache:
+                        return False
+                except (IndexError, ValueError):
+                    return False
+
+    return True
+
+
 def refresh(cache_path: Path, root: Path) -> RefreshStats:
     """Self-heal cache by rescanning files and matching content hashes.
 
-    Since cache entries are keyed by content hash, unchanged symbols survive
-    file renames, line shifts from edits at the top of the file, and
-    directory reorganizations. This rebuilds the `targets` array with
-    current file paths and line numbers while preserving all review results.
+    Fast path: verify existing targets' hashes still match. If all match,
+    the cache is fresh and no work is needed.
+
+    Slow path: if any target is stale, rescan all Python files under root,
+    match content hashes against the cache's hash-keyed sections, and
+    rebuild targets with current file paths and line numbers.
     """
     if not cache_path.exists():
         raise FileNotFoundError(f"Cache file not found: {cache_path}")
@@ -935,18 +975,28 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
     symbols_cache = data.get("symbols", {})
     targets_before = len(data.get("targets", []))
 
-    # Preserve changeset targets (no file association)
+    # Fast path: verify existing targets are still valid
+    if _verify_targets(data, root):
+        return RefreshStats(
+            files_scanned=0,
+            file_hits=0,
+            symbol_hits=0,
+            targets_before=targets_before,
+            targets_after=targets_before,
+            orphaned_file_hashes=0,
+            orphaned_symbol_hashes=0,
+            fresh=True,
+        )
+
+    # Slow path: full rescan
     new_targets: list[TargetEntry] = [
         entry for entry in data.get("targets", [])
         if entry["target"]["type"] == "changeset"
     ]
 
-    # Track which cache hashes we matched
     matched_file_hashes: set[str] = set()
     matched_symbol_hashes: set[str] = set()
-
-    # All entries including all-pass symbols (for summary count)
-    all_entries: list[TargetEntry] = list(new_targets)  # starts with changeset entries
+    all_entries: list[TargetEntry] = list(new_targets)
     symbols_reviewed = 0
 
     python_files = _discover_python_files(root)
@@ -997,11 +1047,9 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
                 if has_non_pass(checks):
                     new_targets.append(entry)
 
-    # Sort and rebuild
     new_targets.sort(key=target_sort_key)
     summary = _count_checks(all_entries, symbols_reviewed)
 
-    # Write refreshed cache
     refreshed = CacheFile(
         version="3",
         timestamp=datetime.now(UTC).isoformat(),
@@ -1021,6 +1069,7 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
         targets_after=len(new_targets),
         orphaned_file_hashes=len(files_cache) - len(matched_file_hashes),
         orphaned_symbol_hashes=len(symbols_cache) - len(matched_symbol_hashes),
+        fresh=False,
     )
 
 
@@ -1129,15 +1178,21 @@ def main() -> None:
             except (FileNotFoundError, ValueError) as exc:
                 print(str(exc), file=sys.stderr)
                 sys.exit(1)
-            print(f"Refresh complete: {args.cache}")
-            print(f"  Scanned: {stats['files_scanned']} files")
-            print(f"  Matched: {stats['file_hits']} file(s), {stats['symbol_hits']} symbol(s)")
-            print(f"  Targets: {stats['targets_before']} -> {stats['targets_after']}")
-            if stats["orphaned_file_hashes"] or stats["orphaned_symbol_hashes"]:
+            if stats["fresh"]:
+                print(f"Cache is fresh: {args.cache}")
+            else:
+                print(f"Refresh complete: {args.cache}")
+                print(f"  Scanned: {stats['files_scanned']} files")
                 print(
-                    f"  Orphaned hashes: {stats['orphaned_file_hashes']} file(s), "
-                    f"{stats['orphaned_symbol_hashes']} symbol(s)"
+                    f"  Matched: {stats['file_hits']} file(s), "
+                    f"{stats['symbol_hits']} symbol(s)"
                 )
+                print(f"  Targets: {stats['targets_before']} -> {stats['targets_after']}")
+                if stats["orphaned_file_hashes"] or stats["orphaned_symbol_hashes"]:
+                    print(
+                        f"  Orphaned hashes: {stats['orphaned_file_hashes']} file(s), "
+                        f"{stats['orphaned_symbol_hashes']} symbol(s)"
+                    )
         case _:
             pass
 
