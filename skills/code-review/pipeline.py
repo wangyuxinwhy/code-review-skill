@@ -771,16 +771,56 @@ def build(
 # --- Show ---
 
 
-class ShowResult(TypedDict):
-    summary: ReviewSummary
-    findings: list[TargetEntry]
+def _format_summary(summary: ReviewSummary) -> str:
+    parts = []
+    if summary["blocking_failures"]:
+        parts.append(f"{summary['blocking_failures']} blocking")
+    if summary["advisory_failures"]:
+        parts.append(f"{summary['advisory_failures']} advisory")
+    parts.append(f"{summary['passed']} passed")
+    if summary["blocked"]:
+        parts.append(f"{summary['blocked']} blocked")
+    return (
+        f"Findings: {', '.join(parts)} "
+        f"| Symbols: {summary['symbols_reviewed']} reviewed"
+    )
 
 
-def show(cache_path: Path) -> ShowResult:
-    """Extract only failed/blocked checks from cache.json for curator review.
+def _read_source_lines(file_path: str) -> list[str] | None:
+    try:
+        return Path(file_path).read_text().splitlines()
+    except OSError:
+        return None
 
-    Strips passed checks from each target so the output contains only actionable
-    findings.  Targets where all checks passed are omitted entirely.
+
+def _annotate_source(
+    source_lines: list[str],
+    start: int,
+    end: int,
+    annotations: dict[int, str],
+) -> str:
+    """Render source lines start..end (1-indexed inclusive) with inline annotations.
+
+    annotations maps absolute line number -> message.
+    """
+    out: list[str] = []
+    width = len(str(end))
+    for lineno in range(start, end + 1):
+        idx = lineno - 1
+        line_text = source_lines[idx] if idx < len(source_lines) else ""
+        out.append(f"  {lineno:>{width}} | {line_text}")
+        if lineno in annotations:
+            marker = " " * width + "   "
+            out.append(f"  {marker} ^ {annotations[lineno]}")
+    return "\n".join(out)
+
+
+def show(cache_path: Path) -> str:
+    """Render actionable findings as annotated source for curator review.
+
+    Reads cache.json, filters to failed/blocked checks, reads source files,
+    and produces a diagnostic report with inline annotations on the relevant
+    source lines.
     """
     if not cache_path.exists():
         raise FileNotFoundError(f"Cache file not found: {cache_path}")
@@ -788,19 +828,67 @@ def show(cache_path: Path) -> ShowResult:
     if data.get("version") != "3":
         raise ValueError(f"Unsupported cache version: {data.get('version')}")
 
-    findings: list[TargetEntry] = []
+    summary: ReviewSummary = data["summary"]
+    out: list[str] = [f"## {_format_summary(summary)}", ""]
+
+    # Cache of read source files
+    source_cache: dict[str, list[str] | None] = {}
+
     for target_entry in data.get("targets", []):
         failed_checks = [
             check for check in target_entry.get("checks", [])
             if check.get("pass") is not True
         ]
-        if failed_checks:
-            findings.append(TargetEntry(
-                target=target_entry["target"],
-                checks=cast(list[CheckResult], failed_checks),
-            ))
+        if not failed_checks:
+            continue
 
-    return ShowResult(summary=data["summary"], findings=findings)
+        target = target_entry["target"]
+        target_type = target["type"]
+
+        # Build header
+        if target_type == "symbol":
+            file_path = target["file"]
+            start, end = target["lines"]
+            header = f"### {target['symbol']}  {file_path}:{start}-{end}"
+        elif target_type == "file":
+            file_path = target["file"]
+            start, end = 1, 0  # will be set per-annotation
+            header = f"### File: {file_path}"
+        else:
+            header = f"### Changeset"
+            file_path = ""
+            start, end = 0, 0
+
+        out.append(header)
+
+        # List failed checks as diagnostics
+        for check in failed_checks:
+            check_id = check.get("id", "?")
+            level = check.get("level", "advisory").upper()
+            note = check.get("note", "")
+            out.append(f"[{level} {check_id}] {note}")
+
+        # Render annotated source for symbol targets
+        if target_type == "symbol" and file_path:
+            if file_path not in source_cache:
+                source_cache[file_path] = _read_source_lines(file_path)
+            source_lines = source_cache[file_path]
+            if source_lines:
+                # Collect all annotations: offset -> absolute line
+                annotation_map: dict[int, str] = {}
+                for check in failed_checks:
+                    for annotation in check.get("annotations", []):
+                        abs_line = annotation["offset"] + start
+                        annotation_map[abs_line] = (
+                            f"[{check.get('id', '?')}] {annotation['message']}"
+                        )
+                out.append("```")
+                out.append(_annotate_source(source_lines, start, end, annotation_map))
+                out.append("```")
+
+        out.append("")
+
+    return "\n".join(out)
 
 
 # --- CLI ---
@@ -887,11 +975,11 @@ def main() -> None:
             )
         case "show":
             try:
-                result = show(cache_path=args.cache)
+                report = show(cache_path=args.cache)
             except (FileNotFoundError, ValueError) as exc:
                 print(str(exc), file=sys.stderr)
                 sys.exit(1)
-            print(json.dumps(result, indent=2, ensure_ascii=False))
+            print(report)
         case _:
             pass
 
