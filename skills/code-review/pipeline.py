@@ -4,10 +4,12 @@
 # ///
 """Review pipeline — symbol extraction, incremental cache, and staging merge.
 
-Three subcommands:
-  symbols Extract symbol definitions from a Python file using AST.
-  check   Compare file/symbol content hashes against cache, pre-write staging for hits.
-  build   Merge staging files, compute cache entries, and write combined cache.json.
+Subcommands:
+  symbols  Extract symbol definitions from a Python file using AST.
+  check    Compare file/symbol content hashes against cache, pre-write staging for hits.
+  build    Merge staging files, compute cache entries, and write combined cache.json.
+  show     Render actionable findings as annotated source.
+  refresh  Self-heal cache — rescan files, match by content hash, rebuild targets.
 """
 
 import argparse
@@ -891,6 +893,137 @@ def show(cache_path: Path) -> str:
     return "\n".join(out)
 
 
+# --- Refresh (self-heal) ---
+
+
+class RefreshStats(TypedDict):
+    files_scanned: int
+    file_hits: int
+    symbol_hits: int
+    targets_before: int
+    targets_after: int
+    orphaned_file_hashes: int
+    orphaned_symbol_hashes: int
+
+
+def _discover_python_files(root: Path) -> list[Path]:
+    """Find all .py files under root, excluding hidden dirs and common non-source dirs."""
+    exclude = {".git", ".venv", "venv", "__pycache__", "node_modules", ".tox", ".mypy_cache"}
+    results: list[Path] = []
+    for path in root.rglob("*.py"):
+        if any(part in exclude for part in path.parts):
+            continue
+        results.append(path)
+    return sorted(results)
+
+
+def refresh(cache_path: Path, root: Path) -> RefreshStats:
+    """Self-heal cache by rescanning files and matching content hashes.
+
+    Since cache entries are keyed by content hash, unchanged symbols survive
+    file renames, line shifts from edits at the top of the file, and
+    directory reorganizations. This rebuilds the `targets` array with
+    current file paths and line numbers while preserving all review results.
+    """
+    if not cache_path.exists():
+        raise FileNotFoundError(f"Cache file not found: {cache_path}")
+    data: CacheFile = json.loads(cache_path.read_text())
+    if data.get("version") != "3":
+        raise ValueError(f"Unsupported cache version: {data.get('version')}")
+
+    files_cache = data.get("files", {})
+    symbols_cache = data.get("symbols", {})
+    targets_before = len(data.get("targets", []))
+
+    # Preserve changeset targets (no file association)
+    new_targets: list[TargetEntry] = [
+        entry for entry in data.get("targets", [])
+        if entry["target"]["type"] == "changeset"
+    ]
+
+    # Track which cache hashes we matched
+    matched_file_hashes: set[str] = set()
+    matched_symbol_hashes: set[str] = set()
+
+    # All entries including all-pass symbols (for summary count)
+    all_entries: list[TargetEntry] = list(new_targets)  # starts with changeset entries
+    symbols_reviewed = 0
+
+    python_files = _discover_python_files(root)
+    files_scanned = 0
+
+    for file_path in python_files:
+        files_scanned += 1
+        rel_path = str(file_path.relative_to(root))
+
+        # File-level match
+        file_hash = compute_file_hash(file_path)
+        if file_hash in files_cache:
+            matched_file_hashes.add(file_hash)
+            cached_checks = files_cache[file_hash]
+            entry = TargetEntry(
+                target=FileTarget(type="file", file=rel_path),
+                checks=cast(list[CheckResult], cached_checks["checks"]),
+            )
+            new_targets.append(entry)
+            all_entries.append(entry)
+
+        # Symbol-level match
+        try:
+            source = file_path.read_text()
+            symbols = extract_symbols(source)
+        except OSError:
+            continue
+
+        for symbol in symbols:
+            try:
+                symbol_hash = compute_symbol_hash(file_path, symbol["lines"])
+            except (IndexError, ValueError):
+                continue
+
+            if symbol_hash in symbols_cache:
+                matched_symbol_hashes.add(symbol_hash)
+                symbols_reviewed += 1
+                cached_checks = symbols_cache[symbol_hash]
+                target = SymbolTarget(
+                    type="symbol",
+                    file=rel_path,
+                    symbol=symbol["name"],
+                    lines=(symbol["lines"][0], symbol["lines"][1]),
+                )
+                checks = cast(list[CheckResult], cached_checks["checks"])
+                entry = TargetEntry(target=target, checks=checks)
+                all_entries.append(entry)
+                if has_non_pass(checks):
+                    new_targets.append(entry)
+
+    # Sort and rebuild
+    new_targets.sort(key=target_sort_key)
+    summary = _count_checks(all_entries, symbols_reviewed)
+
+    # Write refreshed cache
+    refreshed = CacheFile(
+        version="3",
+        timestamp=datetime.now(UTC).isoformat(),
+        checklist_version=data.get("checklist_version", "unknown"),
+        summary=summary,
+        targets=new_targets,
+        files=files_cache,
+        symbols=symbols_cache,
+    )
+    cache_path.write_text(json.dumps(refreshed, indent=2, ensure_ascii=False) + "\n")
+
+    return RefreshStats(
+        files_scanned=files_scanned,
+        file_hits=len(matched_file_hashes),
+        symbol_hits=len(matched_symbol_hashes),
+        targets_before=targets_before,
+        targets_after=len(new_targets),
+        orphaned_file_hashes=len(files_cache) - len(matched_file_hashes),
+        orphaned_symbol_hashes=len(symbols_cache) - len(matched_symbol_hashes),
+    )
+
+
 # --- CLI ---
 
 
@@ -927,6 +1060,16 @@ def main() -> None:
     # show subcommand
     show_parser = subparsers.add_parser("show", help="Show findings from cache.json")
     show_parser.add_argument("--cache", type=Path, default=Path(".claude/review/cache.json"))
+
+    # refresh subcommand
+    refresh_parser = subparsers.add_parser(
+        "refresh", help="Self-heal cache — rescan files, match by hash, rebuild targets"
+    )
+    refresh_parser.add_argument("--cache", type=Path, default=Path(".claude/review/cache.json"))
+    refresh_parser.add_argument(
+        "--root", type=Path, default=Path("."),
+        help="Project root to scan for Python files",
+    )
 
     args = parser.parse_args()
 
@@ -980,6 +1123,21 @@ def main() -> None:
                 print(str(exc), file=sys.stderr)
                 sys.exit(1)
             print(report)
+        case "refresh":
+            try:
+                stats = refresh(cache_path=args.cache, root=args.root.resolve())
+            except (FileNotFoundError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                sys.exit(1)
+            print(f"Refresh complete: {args.cache}")
+            print(f"  Scanned: {stats['files_scanned']} files")
+            print(f"  Matched: {stats['file_hits']} file(s), {stats['symbol_hits']} symbol(s)")
+            print(f"  Targets: {stats['targets_before']} -> {stats['targets_after']}")
+            if stats["orphaned_file_hashes"] or stats["orphaned_symbol_hashes"]:
+                print(
+                    f"  Orphaned hashes: {stats['orphaned_file_hashes']} file(s), "
+                    f"{stats['orphaned_symbol_hashes']} symbol(s)"
+                )
         case _:
             pass
 
