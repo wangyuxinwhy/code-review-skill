@@ -156,6 +156,11 @@ class Annotation(TypedDict):
     message: str
 
 
+class StagingAnnotation(TypedDict):
+    line: int
+    message: str
+
+
 # Functional form because `pass` is a Python keyword.
 CheckResult = TypedDict(
     "CheckResult",
@@ -171,18 +176,37 @@ CheckResult = TypedDict(
     },
 )
 
+StagingCheck = TypedDict(
+    "StagingCheck",
+    {
+        "id": str,
+        "pass": bool | None,
+        "note": NotRequired[str],
+        "annotations": NotRequired[list[StagingAnnotation]],
+    },
+)
+
 
 # --- Composite types ---
+
+
+class StagingSymbolEntry(TypedDict, total=False):
+    target: TargetDescriptor
+    checks: list[StagingCheck]
+    symbol: str
+    name: str
+    file: str
+    lines: tuple[int, int]
 
 
 class StagingEntry(TypedDict, total=False):
     """A single staging file's content. Fields vary by stage type."""
     stage: str
     target: TargetDescriptor
-    checks: list[dict[str, Any]]
+    checks: list[StagingCheck]
     file: str
-    targets: list[dict[str, Any]]
-    symbols: list[dict[str, Any]]
+    targets: list[StagingSymbolEntry]
+    symbols: list[StagingSymbolEntry]
 
 
 class TargetEntry(TypedDict):
@@ -241,8 +265,8 @@ class CacheStats(TypedDict):
 
 
 class CheckOutput(TypedDict):
-    cached: list[str]
-    review: list[str]
+    cached_files: list[str]
+    review_files: list[str]
     cached_symbols: dict[str, list[str]]
     review_symbols: dict[str, list[str]]
     stats: CacheStats
@@ -342,7 +366,7 @@ def has_non_pass(checks: Iterable[CheckResult]) -> bool:
     return False
 
 
-def _extract_symbol_entries(staging: StagingEntry) -> list[dict[str, Any]]:
+def _extract_symbol_entries(staging: StagingEntry) -> list[StagingSymbolEntry]:
     """Extract symbol entries from staging, supporting both grouped and per-symbol formats.
 
     Grouped (legacy): { "stage": "symbol", "targets": [{ "target": ..., "checks": ... }, ...] }
@@ -359,7 +383,7 @@ def _extract_symbol_entries(staging: StagingEntry) -> list[dict[str, Any]]:
             return []
 
 
-def _normalize_symbol_target(entry: dict[str, Any], fallback_file: str) -> SymbolTarget:
+def _normalize_symbol_target(entry: StagingSymbolEntry, fallback_file: str) -> SymbolTarget:
     """Handle subagent format variants for symbol targets."""
     if "target" in entry:
         return entry["target"]
@@ -415,7 +439,7 @@ def _convert_offsets_to_lines(
 
 def merge_staging(
     staging_files: Iterable[StagingEntry],
-    checklist_items: dict[str, ChecklistItem] | None = None,
+    checklist_items: Mapping[str, ChecklistItem] | None = None,
 ) -> MergeResult:
     """Counts include all-pass symbols that are filtered out of the returned targets."""
     checklist_lookup = checklist_items or {}
@@ -426,27 +450,28 @@ def merge_staging(
     for staging in staging_files:
         stage = staging["stage"]
 
-        if stage in ("changeset", "file"):
-            checks = [enrich_check(check, checklist_lookup) for check in staging.get("checks", [])]
-            entry = TargetEntry(
-                target=staging["target"],
-                checks=sort_checks(checks),
-            )
-            all_entries.append(entry)
-            filtered_targets.append(entry)
-
-        elif stage == "symbol":
-            file_path = staging.get("file", "")
-            symbol_entries = _extract_symbol_entries(staging)
-            for symbol_entry in symbol_entries:
-                symbols_reviewed += 1
-                target = _normalize_symbol_target(symbol_entry, file_path)
-                checks = [enrich_check(check, checklist_lookup) for check in symbol_entry.get("checks", [])]
-                sorted_checks = sort_checks(checks)
-                entry = TargetEntry(target=target, checks=sorted_checks)
+        match stage:
+            case "changeset" | "file":
+                checks = [enrich_check(check, checklist_lookup) for check in staging.get("checks", [])]
+                entry = TargetEntry(
+                    target=staging["target"],
+                    checks=sort_checks(checks),
+                )
                 all_entries.append(entry)
-                if has_non_pass(sorted_checks):
-                    filtered_targets.append(entry)
+                filtered_targets.append(entry)
+
+            case "symbol":
+                file_path = staging.get("file", "")
+                symbol_entries = _extract_symbol_entries(staging)
+                for symbol_entry in symbol_entries:
+                    symbols_reviewed += 1
+                    target = _normalize_symbol_target(symbol_entry, file_path)
+                    checks = [enrich_check(check, checklist_lookup) for check in symbol_entry.get("checks", [])]
+                    sorted_checks = sort_checks(checks)
+                    entry = TargetEntry(target=target, checks=sorted_checks)
+                    all_entries.append(entry)
+                    if has_non_pass(sorted_checks):
+                        filtered_targets.append(entry)
 
     filtered_targets.sort(key=target_sort_key)
     summary = _count_checks(all_entries, symbols_reviewed)
@@ -511,15 +536,15 @@ def load_cache(cache_path: Path, checklist_path: Path) -> CacheFile | None:
 
 
 class _FileCacheResult(NamedTuple):
-    cached: list[str]
-    review: list[str]
+    cached_files: list[str]
+    review_files: list[str]
     hit: int
     miss: int
 
 
 class _SymbolCacheResult(NamedTuple):
-    cached_syms: dict[str, list[str]]
-    review_syms: dict[str, list[str]]
+    cached_symbols: dict[str, list[str]]
+    review_symbols: dict[str, list[str]]
     symbol_targets: list[TargetEntry]
     hit: int
     miss: int
@@ -563,10 +588,10 @@ def _check_symbol_cache(
 ) -> _SymbolCacheResult:
     """Look up per-symbol content hashes against cache for a list of files.
 
-    Uncached symbols are tracked in review_syms; the caller decides which to use.
+    Uncached symbols are tracked in review_symbols; the caller decides which to use.
     """
-    cached_syms: dict[str, list[str]] = {}
-    review_syms: dict[str, list[str]] = {}
+    cached_symbols: dict[str, list[str]] = {}
+    review_symbols: dict[str, list[str]] = {}
     symbol_targets: list[TargetEntry] = []
     hit = 0
     miss = 0
@@ -599,11 +624,11 @@ def _check_symbol_cache(
                 file_review.append(symbol["name"])
                 miss += 1
         if file_cached:
-            cached_syms[file_str] = file_cached
+            cached_symbols[file_str] = file_cached
         if file_review:
-            review_syms[file_str] = file_review
+            review_symbols[file_str] = file_review
 
-    return _SymbolCacheResult(cached_syms, review_syms, symbol_targets, hit, miss)
+    return _SymbolCacheResult(cached_symbols, review_symbols, symbol_targets, hit, miss)
 
 
 def check(
@@ -622,11 +647,11 @@ def check(
 
     file_result = _check_file_cache(files, cache, staging_dir)
 
-    symbol_cached = _check_symbol_cache(file_result.cached, cache)
-    symbol_review = _check_symbol_cache(file_result.review, cache)
+    symbol_cached = _check_symbol_cache(file_result.cached_files, cache)
+    symbol_review = _check_symbol_cache(file_result.review_files, cache)
 
-    cached_symbols = {**symbol_cached.cached_syms, **symbol_review.cached_syms}
-    review_symbols = symbol_review.review_syms
+    cached_symbols = {**symbol_cached.cached_symbols, **symbol_review.cached_symbols}
+    review_symbols = symbol_review.review_symbols
     symbol_hit = symbol_cached.hit + symbol_review.hit
     symbol_miss = symbol_cached.miss + symbol_review.miss
     all_symbol_targets = symbol_cached.symbol_targets + symbol_review.symbol_targets
@@ -638,8 +663,8 @@ def check(
         sym_path.write_text(json.dumps(symbol_staging, indent=2, ensure_ascii=False) + "\n")
 
     return CheckOutput(
-        cached=file_result.cached,
-        review=file_result.review,
+        cached_files=file_result.cached_files,
+        review_files=file_result.review_files,
         cached_symbols=cached_symbols,
         review_symbols=review_symbols,
         stats=CacheStats(
@@ -748,12 +773,13 @@ def build(
     # Convert annotations from absolute line to offset in targets
     for target_entry in targets:
         target = target_entry["target"]
-        if target["type"] == "symbol":
-            base_line = target["lines"][0]
-        elif target["type"] == "file":
-            base_line = 1
-        else:
-            continue
+        match target["type"]:
+            case "symbol":
+                base_line = target["lines"][0]
+            case "file":
+                base_line = 1
+            case _:
+                continue
         # list[CheckResult] <-> list[dict[str, Any]]: TypedDict is not assignable to
         # dict[str, Any] in basedpyright strict mode, but compatible at runtime
         checks = cast(list[dict[str, Any]], target_entry["checks"])
@@ -863,18 +889,19 @@ def show(cache_path: Path, root: Path | None = None) -> str:
         target_type = target["type"]
 
         # Build header
-        if target_type == "symbol":
-            file_path = target["file"]
-            start, end = target["lines"]
-            header = f"### {target['symbol']}  {file_path}:{start}-{end}"
-        elif target_type == "file":
-            file_path = target["file"]
-            start, end = 1, 0  # will be set per-annotation
-            header = f"### File: {file_path}"
-        else:
-            header = f"### Changeset"
-            file_path = ""
-            start, end = 0, 0
+        match target_type:
+            case "symbol":
+                file_path = target["file"]
+                start, end = target["lines"]
+                header = f"### {target['symbol']}  {file_path}:{start}-{end}"
+            case "file":
+                file_path = target["file"]
+                start, end = 1, 0  # will be set per-annotation
+                header = f"### File: {file_path}"
+            case _:
+                header = "### Changeset"
+                file_path = ""
+                start, end = 0, 0
 
         out.append(header)
 
@@ -913,8 +940,8 @@ def show(cache_path: Path, root: Path | None = None) -> str:
 
 class RefreshStats(TypedDict):
     files_scanned: int
-    file_hits: int
-    symbol_hits: int
+    file_hit: int
+    symbol_hit: int
     targets_before: int
     targets_after: int
     orphaned_file_hashes: int
@@ -989,8 +1016,8 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
     if _verify_targets(data, root):
         return RefreshStats(
             files_scanned=0,
-            file_hits=0,
-            symbol_hits=0,
+            file_hit=0,
+            symbol_hit=0,
             targets_before=targets_before,
             targets_after=targets_before,
             orphaned_file_hashes=0,
@@ -1073,8 +1100,8 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
 
     return RefreshStats(
         files_scanned=files_scanned,
-        file_hits=len(matched_file_hashes),
-        symbol_hits=len(matched_symbol_hashes),
+        file_hit=len(matched_file_hashes),
+        symbol_hit=len(matched_symbol_hashes),
         targets_before=targets_before,
         targets_after=len(new_targets),
         orphaned_file_hashes=len(files_cache) - len(matched_file_hashes),
@@ -1194,8 +1221,8 @@ def main() -> None:
                 print(f"Refresh complete: {args.cache}")
                 print(f"  Scanned: {stats['files_scanned']} files")
                 print(
-                    f"  Matched: {stats['file_hits']} file(s), "
-                    f"{stats['symbol_hits']} symbol(s)"
+                    f"  Matched: {stats['file_hit']} file(s), "
+                    f"{stats['symbol_hit']} symbol(s)"
                 )
                 print(f"  Targets: {stats['targets_before']} -> {stats['targets_after']}")
                 if stats["orphaned_file_hashes"] or stats["orphaned_symbol_hashes"]:
