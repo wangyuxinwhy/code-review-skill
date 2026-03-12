@@ -1,0 +1,375 @@
+version: "2"
+
+# Rule-based checks that must pass before LLM review begins (Gate 0).
+# The command should exit 0 on success, non-zero on failure.
+pre_check: "make check"
+
+categories:
+  - id: design
+    order: 1
+    label: "Design & Responsibility"
+  - id: correctness
+    order: 2
+    label: "Correctness"
+  - id: readability
+    order: 3
+    label: "Readability"
+
+items:
+  # --- Changeset scope ---
+
+  - id: dependency-direction
+    category: design
+    scope: changeset
+    level: blocking
+    description: "No dependency direction violations"
+    prompt: |
+      Check if the changeset introduces dependency direction violations:
+      - Domain/core code importing infrastructure/framework code directly
+      - Lower-level packages depending on higher-level packages
+      - Circular dependencies between modules
+      - Scripts/apps importing from other scripts/apps (they should only import from packages)
+      Report specific import paths if violations found.
+
+  - id: naming-consistency
+    category: readability
+    scope: changeset
+    level: advisory
+    description: "Same concept uses the same name across the changeset"
+    prompt: |
+      Check if the changeset uses different names for the same concept.
+      A "concept" is a data shape or domain idea that appears in multiple
+      places — parameters, variables, type aliases, function name fragments.
+
+      Method: identify recurring data shapes (same type, same role) across
+      the changed files. If two or more names refer to the same concept,
+      flag the inconsistency and suggest which name to standardize on.
+
+      Flag:
+      - The same typed structure called different names in different
+        functions (e.g., a `tuple[str, int]` called `entry` in one
+        function and `record` in another, both representing a log line)
+      - Function name fragments that diverge for the same operation
+        (e.g., `get_user` vs `fetch_user` in sibling modules when both
+        do the same thing)
+
+      Do NOT flag:
+      - Names inherited from different external domains that converge
+        in the codebase (e.g., git "hunk" vs AST "lines" — each name
+        carries domain-specific meaning worth preserving)
+      - Aliases deliberately introduced for readability at different
+        abstraction layers (e.g., a low-level `bytes` buffer vs a
+        high-level `payload`)
+
+  # --- File scope ---
+
+  - id: module-cohesion
+    category: design
+    scope: file
+    level: advisory
+    when: "Source code files only. Skip __init__.py, conftest.py, and test files."
+    description: "Module has a focused, cohesive responsibility"
+    prompt: |
+      Check if the file mixes unrelated concerns or has grown too large. Flag:
+      - A single file containing classes/functions from clearly separate domains
+        (e.g., HTTP handlers + database models + business logic in one module)
+      - Files with 10+ top-level definitions that don't share a unifying concept
+      - God modules that accumulate utilities for unrelated features
+
+      Do NOT flag:
+      - Files that are large but cohesive (e.g., a single data processing pipeline
+        with many helper functions that all serve one workflow)
+      - __init__.py files that re-export public API
+      - Test files (test modules naturally collect many test functions)
+      - Scripts — standalone scripts are expected to be self-contained
+
+  - id: file-naming
+    category: readability
+    scope: file
+    level: advisory
+    when: "Source code files only. Skip __init__.py, conftest.py, test files, and config files."
+    description: "Filename accurately reflects the module's actual responsibility"
+    prompt: |
+      Check if the filename matches what the module actually does.
+
+      Method: list the module's distinct public capabilities (exported
+      functions, CLI subcommands, class groups). If the filename only
+      names one capability while the module exposes others that are
+      independently useful, the name is incomplete.
+
+      Flag:
+      - Filename describes only one of several independent capabilities
+        (e.g., a file named `auth.py` that also handles user profile CRUD
+        and session management — the name covers 1 of 3 capabilities)
+      - Filename is too generic for a module with specific responsibilities
+        (e.g., `utils.py` containing only date formatting helpers)
+      - Filename is misleading about the module's primary concern
+
+      When flagging, the note MUST:
+      - Suggest a concrete replacement filename
+      - List files that reference the current filename (imports, docs,
+        config) so the developer knows the rename's blast radius
+
+      Do NOT flag:
+      - Modules where all functionality serves one unifying concept and
+        the filename names that concept
+      - __init__.py, setup.py, conftest.py — conventional names
+      - Test files — `test_<module>.py` naming is a convention
+
+  # --- Symbol scope ---
+
+  - id: data-structure-fit
+    category: design
+    scope: symbol
+    level: advisory
+    when: "Functions that create, transform, or query collections. Skip trivial cases (< 5 elements, single use)."
+    description: "Data structure matches the operations performed on it"
+    prompt: |
+      A data structure should be chosen for the operations it undergoes,
+      not for convenience of construction. Check if the chosen structure
+      forces unnecessary work or loses information that downstream
+      operations need.
+
+      Flag:
+      - Expanding structured data into a flat collection when downstream
+        operations only need the original structure (e.g., unrolling
+        date ranges into individual dates when all queries are range
+        overlaps; building a list of items only to immediately convert
+        to a set for membership checks)
+      - Using a sequence for key-based lookup (linear scan instead of
+        dict/set)
+      - Losing relational structure by flattening (e.g., collapsing a
+        tree into a list then re-discovering parent-child relationships
+        by string matching)
+
+      Method: trace the data from **construction** through all
+      **consumption** sites. List what operations are performed (lookup,
+      membership, overlap, iteration, sort). If the structure requires
+      O(n) work for an operation that a different structure handles in
+      O(1) or O(log n), flag it.
+
+      Do NOT flag:
+      - Small fixed-size collections where algorithmic complexity is
+        irrelevant (e.g., 3-element config list)
+      - Structures chosen for serialization compatibility (JSON arrays)
+        when no better option exists at that boundary
+      - Cases where the simpler structure is consumed only once in a
+        short pipeline — the overhead of a fancier structure isn't
+        justified
+
+  - id: type-annotations
+    category: correctness
+    scope: symbol
+    level: advisory
+    when: "Python source files only. Skip tests, scripts under 50 lines, and config files."
+    description: "Type annotations are complete, modern, and accurately reflect design intent"
+    prompt: |
+      Types are design documentation — they should tell the reader what
+      the data really is, not just satisfy the type checker. Check that
+      annotations are present, use modern syntax, and accurately reflect
+      the actual data shape.
+
+      Flag:
+      - Functions missing return type annotations
+      - Function parameters without type annotations (except self/cls)
+      - Using legacy typing imports (List, Dict, Optional, Union) instead of
+        modern syntax (list, dict, X | None, X | Y)
+      - Annotations that are technically correct but too loose for the actual
+        data shape — the type permits values that the design never produces
+        or accepts (e.g., `list[str]` for an RGB triple that is always
+        exactly 3 elements → use `tuple[str, str, str]`; `str` for a
+        value that is always `"asc"` or `"desc"` → use `Literal[...]`)
+
+      Method for precision checks: look at how the value is **constructed**
+      and **consumed**. If all construction sites produce a fixed shape and
+      all consumption sites destructure by position or known keys, the
+      annotation should reflect that fixed shape.
+
+      Do NOT flag:
+      - Lambdas or trivial one-line helpers where types are obvious from context
+      - Test files (test helpers often have flexible signatures)
+      - Types that are loose because they genuinely accept variable input
+        (e.g., a function that processes arbitrary-length lists)
+      - Pass-through parameters — flag at the definition site (TypedDict
+        field, dataclass field, constructor), not every function that
+        forwards the value unchanged
+
+  - id: single-responsibility
+    category: design
+    scope: symbol
+    level: blocking
+    description: "Functions and classes have single, cohesive responsibility"
+    prompt: |
+      Check this function/class for single responsibility. The key question is
+      COHESION, not counting operations: "do all operations serve one logical
+      purpose, or are there independent concerns that could vary separately?"
+
+      Flag:
+      - Functions mixing I/O with business logic (e.g., fetch + compute + write in one function)
+      - Classes owning unrelated state or mixing mechanism with domain
+      - Functions that need `noqa: PLR0915` (too many statements) — this is a direct smell
+
+      Do NOT flag:
+      - Multiple operations on the SAME data structure that share a parse/setup step
+        (e.g., extracting two fields from the same JSON blob is one "parse" responsibility)
+      - Pipeline orchestrators that delegate to helpers — a function that calls
+        step_1(), step_2(), step_3() has one responsibility: orchestration
+      - Functions under ~30 lines that do multiple small related things — the cost
+        of splitting exceeds the benefit
+
+  - id: constructor-purity
+    category: design
+    scope: symbol
+    level: blocking
+    when: "Only applies to `__init__` methods and class definitions with constructors."
+    description: "__init__ only assigns dependencies — no conditionals or side effects"
+    prompt: |
+      Check if `__init__` violates constructor purity. Flag:
+      - Conditionals in __init__ (if/else for default resolution)
+      - Side effects in __init__ (network calls, file I/O, logging setup)
+      - Default value resolution in __init__ (e.g., `self.x = x or SomeDefault()`)
+      - Union types in __init__ parameters (e.g., `x: str | Config | None`)
+
+      Complex construction belongs in classmethods:
+      - `defaults()` for zero-arg defaults
+      - `from_x()` for type conversion
+      - `create()` for smart construction with optional overrides
+
+      Do NOT flag:
+      - Simple default values in signatures (e.g., `x: int = 0`)
+      - Dataclasses and TypedDicts (they don't have custom __init__)
+      - Scripts and standalone tools where constructor patterns are overkill
+
+  - id: parameter-breadth
+    category: design
+    scope: symbol
+    level: advisory
+    when: "Functions and methods. Skip __init__, CLI parsers, and test helpers."
+    description: "Parameters accept the minimal type needed"
+    prompt: |
+      Check if function parameters accept unnecessarily broad or concrete types. Flag:
+      - Accepting a large object (e.g., Settings, Context, DataFrame) when only
+        one or two fields are used — pass those fields directly instead
+      - Accepting a concrete class when only a Protocol method is called —
+        depend on the protocol, not the implementation
+      - Accepting `Any` when a more specific type is known
+      - Accepting concrete collection types when abstract ones suffice —
+        e.g., `list[X]` when the function only iterates (use `Iterable[X]`),
+        or `dict[K, V]` when only reading (use `Mapping[K, V]`).
+        Check what the function body actually does with the parameter:
+        only iterate → Iterable; index or slice → Sequence; mutate → list.
+
+      Do NOT flag:
+      - Orchestration functions that legitimately need a full object to pass
+        to multiple sub-calls
+      - Entry points and CLI handlers that receive broad configuration objects
+      - Functions that use 3+ fields of the passed object (the object IS the
+        minimal dependency at that point)
+      - Functions that build, sort, or mutate the collection — they need the
+        concrete type
+
+  - id: no-primitive-obsession
+    category: design
+    scope: symbol
+    level: advisory
+    when: "Functions with dict, list[dict], multiple primitives representing one concept, or similar unstructured types in signatures. Skip scripts under 50 lines and test files."
+    description: "Structured data uses domain types, not raw primitives"
+    prompt: |
+      Check if function signatures use raw primitives where structured types
+      would make the data shape explicit. Flag:
+      - `dict` or `list[dict]` for data with a known, repeating schema —
+        define a TypedDict or dataclass to document the structure
+        (e.g., `entries: list[dict]` where each dict always has `target` and
+        `checks` keys → define a `TargetEntry` TypedDict)
+      - Return types of `dict` or `tuple` with 3+ heterogeneous elements —
+        use a NamedTuple or TypedDict for self-documenting returns
+      - Multiple primitive parameters that together represent a single
+        concept already modeled as a structured type in the codebase.
+        Method: check **call sites** — if every caller destructures the
+        same structured value to pass individual fields, the function
+        should accept the structured type directly
+        (e.g., `r: int, g: int, b: int` when all callers unpack an
+        `RGB` tuple to pass these three values)
+
+      Do NOT flag:
+      - Genuinely dynamic or schemaless data (arbitrary JSON from external APIs)
+      - Functions that build dicts for JSON serialization output
+      - Intermediate local variables inside function bodies — focus on signatures
+      - Pass-through parameters that are forwarded without field access
+      - Independent primitives that represent unrelated concepts even if
+        they share a type (e.g., `width: int, height: int` — separate
+        dimensions, not one structure)
+
+  - id: redundant-docstrings
+    category: readability
+    scope: symbol
+    level: advisory
+    when: "Functions, methods, and classes that have docstrings. Skip if no docstring present."
+    description: "Docstrings add information beyond the function name and signature"
+    prompt: |
+      Check if docstrings merely restate what the function name and type
+      annotations already express. Flag:
+      - Docstrings that paraphrase the function name
+        (e.g., `def get_user` → "Get a user")
+      - Args/Returns/Raises sections that duplicate type annotations
+        with no additional semantic information
+      - Module docstrings that restate the filename and package name
+
+      Do NOT flag:
+      - Docstrings explaining non-obvious behavior (concurrency, error strategy,
+        side effects, domain semantics)
+      - Docstrings on public API functions explaining contract/guarantees
+      - Absence of docstrings — this check is about quality, not quantity
+
+  - id: idiomatic-constructs
+    category: readability
+    scope: symbol
+    level: advisory
+    when: "Python source files only. Skip tests, scripts under 50 lines."
+    description: "Code uses the language construct that best expresses intent"
+    prompt: |
+      Each language construct carries semantic meaning. Check if the code
+      uses the construct that most directly expresses what it is doing.
+
+      Flag:
+      - Pattern matching expressed as if/elif isinstance chains — when
+        the intent is "dispatch based on type or structure", match with
+        class/value patterns expresses that directly (e.g., dispatching
+        on `event.type` with if/elif → match on event patterns)
+      - "Check existence then use" expressed as separate if + assignment
+        — walrus operator (`if (x := ...) is not None`) expresses the
+        "test and bind" intent in one step
+      - Conditional value → if/elif/else expressed as separate
+        assignments — a single match or dict lookup may express the
+        mapping intent more directly
+
+      Method: identify the **semantic intent** of the control flow. If
+      the intent is "dispatch on type/structure", the right construct is
+      match. If the intent is "test a boolean condition", the right
+      construct is if/else. Only flag when there is a mismatch between
+      intent and construct.
+
+      Do NOT flag:
+      - Simple two-branch if/else — match adds ceremony for no gain
+      - Single isinstance guard clauses — not dispatching, just guarding
+      - Cases where match would lose type narrowing or readability
+      - Mechanical rewrites that don't improve semantic clarity
+
+  - id: naming-clarity
+    category: readability
+    scope: symbol
+    level: advisory
+    description: "Names are self-documenting"
+    prompt: |
+      Check variable, function, and class names for clarity. Flag:
+      - Single-character names in loops/comprehensions (e.g., `[m.id for m in items]`)
+      - Abbreviations that truncate a word instead of using a recognized
+        short form. Method: a recognized abbreviation is one that appears
+        in library APIs or has a well-known expansion across the industry
+        (e.g., `db`, `ctx`, `df`, `url`, `src`, `dst`, `msg`, `err`).
+        A truncation is an ad-hoc shortening of a project-specific word
+        (e.g., `sched` for scheduler, `cfg` for config, `mgr` for manager,
+        `elem` for element) — spell these out
+      - Generic names that don't convey domain meaning (data, result, tmp, info,
+        item, obj, output, value) — except in very small scopes (< 5 lines)
+      - Names that don't match what the code actually does
