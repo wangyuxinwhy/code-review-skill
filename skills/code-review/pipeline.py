@@ -175,6 +175,16 @@ CheckResult = TypedDict(
 # --- Composite types ---
 
 
+class StagingEntry(TypedDict, total=False):
+    """A single staging file's content. Fields vary by stage type."""
+    stage: str
+    target: TargetDescriptor
+    checks: list[dict[str, Any]]
+    file: str
+    targets: list[dict[str, Any]]
+    symbols: list[dict[str, Any]]
+
+
 class TargetEntry(TypedDict):
     target: TargetDescriptor
     checks: list[CheckResult]
@@ -275,7 +285,7 @@ def load_checklist(checklist_path: Path) -> Checklist:
 # --- Staging I/O ---
 
 
-def load_staging_files(staging_dir: Path) -> list[dict[str, Any]]:
+def load_staging_files(staging_dir: Path) -> list[StagingEntry]:
     files = sorted(path for path in staging_dir.glob("*.json") if not path.name.startswith("_"))
     return [json.loads(file_path.read_text()) for file_path in files]
 
@@ -332,7 +342,7 @@ def has_non_pass(checks: Iterable[CheckResult]) -> bool:
     return False
 
 
-def _extract_symbol_entries(staging: dict[str, Any]) -> list[dict[str, Any]]:
+def _extract_symbol_entries(staging: StagingEntry) -> list[dict[str, Any]]:
     """Extract symbol entries from staging, supporting both grouped and per-symbol formats.
 
     Grouped (legacy): { "stage": "symbol", "targets": [{ "target": ..., "checks": ... }, ...] }
@@ -404,7 +414,7 @@ def _convert_offsets_to_lines(
 
 
 def merge_staging(
-    staging_files: Iterable[dict[str, Any]],
+    staging_files: Iterable[StagingEntry],
     checklist_items: dict[str, ChecklistItem] | None = None,
 ) -> MergeResult:
     """Counts include all-pass symbols that are filtered out of the returned targets."""
@@ -675,7 +685,7 @@ def _restore_symbol_target(
 # --- Cache: build ---
 
 
-def _build_files_cache(staging_files: Iterable[dict[str, Any]]) -> dict[str, CacheChecks]:
+def _build_files_cache(staging_files: Iterable[StagingEntry]) -> dict[str, CacheChecks]:
     """Only processes entries with stage='file'; skips others."""
     files_cache: dict[str, CacheChecks] = {}
     for staging in staging_files:
@@ -691,7 +701,7 @@ def _build_files_cache(staging_files: Iterable[dict[str, Any]]) -> dict[str, Cac
     return files_cache
 
 
-def _build_symbols_cache(staging_files: Iterable[dict[str, Any]]) -> dict[str, CacheChecks]:
+def _build_symbols_cache(staging_files: Iterable[StagingEntry]) -> dict[str, CacheChecks]:
     """Handles both grouped and per-symbol staging formats; silently skips entries
     with missing files or unparseable line ranges."""
     symbols_cache: dict[str, CacheChecks] = {}
