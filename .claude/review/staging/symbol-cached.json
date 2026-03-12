@@ -1,0 +1,944 @@
+{
+  "stage": "symbol",
+  "targets": [
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "ChangesetTarget",
+        "lines": [
+          44,
+          45
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "FileTarget",
+        "lines": [
+          48,
+          50
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "SymbolTarget",
+        "lines": [
+          53,
+          57
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "SymbolDef",
+        "lines": [
+          66,
+          69
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "extract_symbols",
+        "lines": [
+          72,
+          82
+        ]
+      },
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "_visit_symbols",
+        "lines": [
+          85,
+          106
+        ]
+      },
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "_get_diff_hunks",
+        "lines": [
+          109,
+          134
+        ]
+      },
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "_ranges_overlap",
+        "lines": [
+          137,
+          138
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "_filter_symbols_by_diff",
+        "lines": [
+          141,
+          148
+        ]
+      },
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "Annotation",
+        "lines": [
+          154,
+          156
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "TargetEntry",
+        "lines": [
+          188,
+          190
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "ReviewSummary",
+        "lines": [
+          193,
+          198
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "MergeResult",
+        "lines": [
+          201,
+          204
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "ChecklistItem",
+        "lines": [
+          207,
+          211
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "Checklist",
+        "lines": [
+          214,
+          216
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "CacheFile",
+        "lines": [
+          226,
+          233
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "compute_file_hash",
+        "lines": [
+          254,
+          255
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "compute_symbol_hash",
+        "lines": [
+          258,
+          264
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "load_checklist",
+        "lines": [
+          270,
+          282
+        ]
+      },
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "sort_checks",
+        "lines": [
+          317,
+          318
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "target_sort_key",
+        "lines": [
+          321,
+          331
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "has_non_pass",
+        "lines": [
+          334,
+          342
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "_normalize_symbol_target",
+        "lines": [
+          362,
+          371
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "no-primitive-obsession",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "load_cache",
+        "lines": [
+          497,
+          510
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "_FileCacheResult",
+        "lines": [
+          513,
+          517
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "_check_file_cache",
+        "lines": [
+          528,
+          557
+        ]
+      },
+      "checks": [
+        {
+          "id": "data-structure-fit",
+          "pass": true
+        },
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "target": {
+        "type": "symbol",
+        "file": "skills/code-review/pipeline.py",
+        "symbol": "_write_cached_staging",
+        "lines": [
+          654,
+          664
+        ]
+      },
+      "checks": [
+        {
+          "id": "type-annotations",
+          "pass": true
+        },
+        {
+          "id": "single-responsibility",
+          "pass": true
+        },
+        {
+          "id": "parameter-breadth",
+          "pass": true
+        },
+        {
+          "id": "redundant-docstrings",
+          "pass": true
+        },
+        {
+          "id": "idiomatic-constructs",
+          "pass": true
+        },
+        {
+          "id": "naming-clarity",
+          "pass": true
+        }
+      ]
+    }
+  ]
+}

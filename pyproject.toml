@@ -1,0 +1,61 @@
+[project]
+name = "code-review-skill"
+version = "0.1.0"
+description = "Code review pipeline skill for Claude Code"
+requires-python = ">=3.12"
+dependencies = ["pyyaml>=6"]
+
+[dependency-groups]
+dev = ["ruff>=0.11", "basedpyright>=1.29", "pytest>=8"]
+
+# ---------- Ruff ----------
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["skills"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",       # pycodestyle
+    "F",             # pyflakes
+    "I",             # isort
+    "UP",            # pyupgrade (3.12+)
+    "B",             # bugbear
+    "SIM",           # simplify
+    "PIE",           # misc lints
+    "PT",            # pytest style
+    "RUF",           # ruff-specific
+    "N",             # pep8-naming
+    "C4",            # comprehensions
+    "TCH",           # type-checking imports
+    "PL",            # pylint subset
+    "PERF",          # performance
+    "FURB",          # refurb
+]
+ignore = [
+    "PLR0913",       # too-many-arguments — some functions legitimately need them
+    "PLR2004",       # magic-value-comparison — too noisy for check IDs / constants
+    "PLR0912",       # too-many-branches — complex but well-structured functions
+    "PLR0915",       # too-many-statements — same
+    "SIM108",        # ternary — not always more readable
+    "UP007",         # X | Y union syntax in older annotations — we use it, but not everywhere
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = [
+    "PLR2004",       # magic values fine in tests
+    "PT011",         # pytest.raises too broad — acceptable in tests
+    "N802",          # function name casing — test names can be descriptive
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pipeline"]
+
+# ---------- Basedpyright ----------
+
+[tool.basedpyright]
+pythonVersion = "3.12"
+pythonPlatform = "All"
+typeCheckingMode = "strict"
+include = ["skills"]

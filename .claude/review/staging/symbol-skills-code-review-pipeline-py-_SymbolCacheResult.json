@@ -1,0 +1,9 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_SymbolCacheResult", "lines": [520, 525] },
+  "checks": [
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "naming-clarity", "pass": false }
+  ]
+}
