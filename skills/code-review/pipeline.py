@@ -768,6 +768,41 @@ def build(
     return cache_data
 
 
+# --- Show ---
+
+
+class ShowResult(TypedDict):
+    summary: ReviewSummary
+    findings: list[TargetEntry]
+
+
+def show(cache_path: Path) -> ShowResult:
+    """Extract only failed/blocked checks from cache.json for curator review.
+
+    Strips passed checks from each target so the output contains only actionable
+    findings.  Targets where all checks passed are omitted entirely.
+    """
+    if not cache_path.exists():
+        raise FileNotFoundError(f"Cache file not found: {cache_path}")
+    data = json.loads(cache_path.read_text())
+    if data.get("version") != "3":
+        raise ValueError(f"Unsupported cache version: {data.get('version')}")
+
+    findings: list[TargetEntry] = []
+    for target_entry in data.get("targets", []):
+        failed_checks = [
+            check for check in target_entry.get("checks", [])
+            if check.get("pass") is not True
+        ]
+        if failed_checks:
+            findings.append(TargetEntry(
+                target=target_entry["target"],
+                checks=cast(list[CheckResult], failed_checks),
+            ))
+
+    return ShowResult(summary=data["summary"], findings=findings)
+
+
 # --- CLI ---
 
 
@@ -800,6 +835,10 @@ def main() -> None:
     build_parser.add_argument(
         "--checklist", type=Path, default=Path(".claude/review/checklist.yaml")
     )
+
+    # show subcommand
+    show_parser = subparsers.add_parser("show", help="Show findings from cache.json")
+    show_parser.add_argument("--cache", type=Path, default=Path(".claude/review/cache.json"))
 
     args = parser.parse_args()
 
@@ -846,6 +885,13 @@ def main() -> None:
                 f"  Cache: {len(cache_data['files'])} file(s), "
                 f"{len(cache_data['symbols'])} symbol(s)"
             )
+        case "show":
+            try:
+                result = show(cache_path=args.cache)
+            except (FileNotFoundError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                sys.exit(1)
+            print(json.dumps(result, indent=2, ensure_ascii=False))
         case _:
             pass
 
