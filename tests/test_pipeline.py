@@ -1,40 +1,36 @@
 # pyright: reportArgumentType=false, reportCallIssue=false, reportPrivateUsage=false
-"""Tests for the code-review pipeline script (symbols, cache, and merge logic)."""
+"""Tests for the code-review pipeline (symbols, cache, and merge logic)."""
 
 import hashlib
 import json
-import sys
 from pathlib import Path
 from typing import Any, ClassVar, cast
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from pipeline import (
-    StagingEntry,
-    SymbolDef,
-    TargetEntry,
-    _convert_annotations_to_offsets,
-    _convert_offsets_to_lines,
-    _count_checks,
-    _filter_symbols_by_diff,
-    _normalize_symbol_target,
+from code_review_skill.cache import (
     _restore_symbol_target,
     build,
     check,
     compute_file_hash,
     compute_symbol_hash,
-    enrich_check,
-    extract_symbols,
-    has_non_pass,
     load_cache,
+)
+from code_review_skill.staging import (
+    _convert_annotations_to_offsets,
+    _convert_offsets_to_lines,
+    _count_checks,
+    _normalize_symbol_target,
+    enrich_check,
+    has_non_pass,
     load_checklist,
     load_staging_files,
     merge_staging,
     sort_checks,
     target_sort_key,
 )
+from code_review_skill.symbols import _filter_symbols_by_diff, extract_symbols
+from code_review_skill.types import StagingEntry, SymbolDef, TargetEntry
 
 STAGING_DIR = Path(__file__).parent / "staging"
 

@@ -1,1 +1,0 @@
-/home/user/code-review-skill/skills/code-review/pipeline.py
