@@ -1,0 +1,79 @@
+{
+  "stage": "symbol",
+  "target": {
+    "type": "symbol",
+    "file": "skills/code-review/pipeline.py",
+    "symbol": "_convert_annotations_to_offsets",
+    "lines": [356, 373]
+  },
+  "checks": [
+    {
+      "id": "data-structure-fit",
+      "pass": true
+    },
+    {
+      "id": "type-annotations",
+      "pass": false,
+      "note": "Parameter and return types use raw `dict[str, Any]` instead of the `CheckResult` and `Annotation` TypedDicts already defined in this module. The signature `Iterable[dict[str, Any]]` obscures that these dicts have a known schema with 'id', 'pass', 'annotations' keys. Using the domain types would make the contract explicit.",
+      "annotations": [
+        {
+          "line": 357,
+          "message": "`checks: Iterable[dict[str, Any]]` should be `Iterable[CheckResult]` — the CheckResult TypedDict is defined at L158 and matches this data shape."
+        },
+        {
+          "line": 358,
+          "message": "Return type `list[dict[str, Any]]` should be `list[CheckResult]` to reflect the actual structure being returned."
+        }
+      ]
+    },
+    {
+      "id": "single-responsibility",
+      "pass": true
+    },
+    {
+      "id": "parameter-breadth",
+      "pass": true
+    },
+    {
+      "id": "no-primitive-obsession",
+      "pass": false,
+      "note": "The function signature uses `dict[str, Any]` for both the input and output check objects, and produces annotation dicts with `{\"offset\": int, \"message\": str}` inline. The codebase already defines `Annotation` (L152) with an `offset` field and `CheckResult` (L158). Using these domain types would make the function's contract self-documenting.",
+      "annotations": [
+        {
+          "line": 357,
+          "message": "Parameter `checks` uses `Iterable[dict[str, Any]]` — the `CheckResult` TypedDict already models this data shape."
+        },
+        {
+          "line": 369,
+          "message": "Inline dict `{\"offset\": ..., \"message\": ...}` matches the `Annotation` TypedDict defined at L152 — use it for type safety."
+        }
+      ]
+    },
+    {
+      "id": "redundant-docstrings",
+      "pass": false,
+      "note": "The first line of the docstring ('Convert annotation absolute line numbers to offsets relative to base_line') restates what the function name already communicates. However, the second paragraph explaining file vs symbol base_line semantics adds genuine value. Consider trimming the first sentence or merging it into the explanation.",
+      "annotations": [
+        {
+          "line": 359,
+          "message": "First sentence paraphrases the function name `_convert_annotations_to_offsets`. The base_line explanation below it is the valuable part."
+        }
+      ]
+    },
+    {
+      "id": "idiomatic-constructs",
+      "pass": true
+    },
+    {
+      "id": "naming-clarity",
+      "pass": false,
+      "note": "The variable `ann` is a truncation of `annotation`, not a recognized abbreviation. Within the list comprehension it should be spelled out for clarity.",
+      "annotations": [
+        {
+          "line": 369,
+          "message": "`ann` should be `annotation` — it is an ad-hoc truncation, not a recognized short form."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_build_files_cache", "lines": [680, 693] },
+  "checks": [
+    { "id": "data-structure-fit", "pass": true },
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": false, "note": "The parameter `staging_files` is typed as `Iterable[dict[str, Any]]` but each dict has a known, repeating schema with 'stage', 'target', and 'checks' keys. A TypedDict (e.g., StagingEntry) would document the expected structure.", "annotations": [{ "line": 680, "message": "staging_files: Iterable[dict[str, Any]] — these dicts have a known schema (stage, target, checks); consider a TypedDict." }] },
+    { "id": "redundant-docstrings", "pass": false, "note": "The docstring 'Build the files cache section: content hash -> checks with offsets.' largely restates the function name and return type. The 'content hash -> checks with offsets' part is marginally useful but mostly duplicates what the return type `dict[str, CacheChecks]` already conveys.", "annotations": [{ "line": 681, "message": "Docstring restates the function name; consider removing or adding non-obvious detail (e.g., why only 'file' stage entries are included)." }] },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": true }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_write_cached_staging", "lines": [646, 656] },
+  "checks": [
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "redundant-docstrings", "pass": true },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": true }
+  ]
+}

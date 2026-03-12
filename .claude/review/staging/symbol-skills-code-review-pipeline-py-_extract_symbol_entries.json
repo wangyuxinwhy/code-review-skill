@@ -1,0 +1,13 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_extract_symbol_entries", "lines": [326, 338] },
+  "checks": [
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": true },
+    { "id": "redundant-docstrings", "pass": true },
+    { "id": "idiomatic-constructs", "pass": false, "note": "The series of if/elif checks on key presence is structural dispatch over format variants. A match/case with mapping patterns (e.g., case {\"targets\": targets}, case {\"target\": target}) would express the structural intent more directly.", "annotations": [{ "line": 332, "message": "Structural dispatch on dict keys — match/case with mapping patterns (case {\"targets\": t}, case {\"target\": t}) would express the format-variant intent more directly" }] },
+    { "id": "naming-clarity", "pass": true }
+  ]
+}

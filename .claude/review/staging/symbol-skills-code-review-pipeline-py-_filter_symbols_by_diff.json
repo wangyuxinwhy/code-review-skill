@@ -1,0 +1,13 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_filter_symbols_by_diff", "lines": [139, 146] },
+  "checks": [
+    { "id": "data-structure-fit", "pass": true },
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": true },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": true }
+  ]
+}

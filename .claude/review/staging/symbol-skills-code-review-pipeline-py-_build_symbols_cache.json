@@ -1,0 +1,14 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_build_symbols_cache", "lines": [696, 721] },
+  "checks": [
+    { "id": "data-structure-fit", "pass": true },
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": false, "note": "Same as _build_files_cache: `staging_files` is `Iterable[dict[str, Any]]` but each dict follows a known schema with 'stage', 'target', and 'checks' keys. A TypedDict would make the expected shape explicit.", "annotations": [{ "line": 696, "message": "staging_files: Iterable[dict[str, Any]] — known schema; consider a TypedDict like StagingEntry." }] },
+    { "id": "redundant-docstrings", "pass": false, "note": "The docstring 'Build the symbols cache section: content hash -> checks with offsets.' restates the function name and return type with no additional information.", "annotations": [{ "line": 697, "message": "Docstring paraphrases the function name; consider removing or documenting non-obvious behavior (e.g., how grouped vs per-symbol formats are handled, or why IndexError/ValueError are silently skipped)." }] },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": false, "note": "The variable `raw_targets` on line 702 is misleading — it holds symbol entries (each with target and checks), not raw target descriptors. The name suggests unprocessed TargetDescriptors.", "annotations": [{ "line": 702, "message": "raw_targets is misleading; these are symbol entries (with target+checks), not raw targets. Consider `symbol_entries` to match the loop variable." }] }
+  ]
+}

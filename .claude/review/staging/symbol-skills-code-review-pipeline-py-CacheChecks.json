@@ -1,0 +1,10 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "CacheChecks", "lines": [210, 211] },
+  "checks": [
+    { "id": "type-annotations", "pass": false, "note": "The `checks` field is typed as `list[dict[str, Any]]` but represents a list of check results with a known schema (id, pass, annotations, etc.). The codebase already defines `CheckResult` as a TypedDict for this shape. Using `list[CheckResult]` would make the type annotation more precise and self-documenting.", "annotations": [{ "line": 211, "message": "Consider `list[CheckResult]` instead of `list[dict[str, Any]]` — the schema is known and already modeled by CheckResult." }] },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": true }
+  ]
+}

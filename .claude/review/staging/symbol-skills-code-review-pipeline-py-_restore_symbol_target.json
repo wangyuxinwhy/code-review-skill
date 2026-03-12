@@ -1,0 +1,13 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "_restore_symbol_target", "lines": [659, 674] },
+  "checks": [
+    { "id": "type-annotations", "pass": false, "note": "Return type is dict[str, Any] but the returned dict has a known, fixed shape matching the existing TargetEntry TypedDict (keys: 'target' and 'checks'). The return type should be TargetEntry to express the actual data shape.", "annotations": [{ "line": 661, "message": "Return type dict[str, Any] should be TargetEntry — the returned dict always has 'target' (SymbolTarget) and 'checks' (list) keys matching the existing TypedDict." }] },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": false, "note": "Returns dict[str, Any] when the codebase already defines TargetEntry TypedDict with the exact same shape (target + checks). Using the existing structured type would make the contract explicit.", "annotations": [{ "line": 661, "message": "Return type should use the existing TargetEntry TypedDict instead of dict[str, Any]." }] },
+    { "id": "redundant-docstrings", "pass": true },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": true }
+  ]
+}

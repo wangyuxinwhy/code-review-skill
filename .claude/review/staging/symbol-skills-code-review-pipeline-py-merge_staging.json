@@ -1,0 +1,14 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "merge_staging", "lines": [398, 436] },
+  "checks": [
+    { "id": "data-structure-fit", "pass": true },
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": false, "note": "The `staging_files` parameter accepts `Iterable[dict[str, Any]]` but each staging dict has a known, repeating schema with `stage`, `target`, `checks`, and optional `file` keys. A `StagingEntry` TypedDict already could be defined to document this shape, making the contract explicit rather than requiring callers and readers to know the implicit dict structure.", "annotations": [{ "line": 399, "message": "staging_files: Iterable[dict[str, Any]] -- each dict has a known schema (stage, target, checks, file); consider defining a StagingEntry TypedDict" }] },
+    { "id": "redundant-docstrings", "pass": false, "note": "The docstring 'Summary counts checks from all symbols, including those filtered out of targets as all-pass' describes an implementation detail about counting behavior but is misleadingly phrased as a sentence fragment starting with 'Summary'. It does not clearly explain the function's purpose (merging staging files into a unified MergeResult). The useful information about counting all-pass symbols could be a code comment instead.", "annotations": [{ "line": 402, "message": "Docstring is a confusing fragment; it describes a side-detail (summary counting) rather than the function's main purpose (merge staging entries, enrich checks, filter all-pass symbols, and return a MergeResult)" }] },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": false, "note": "The variable `items` (line 404) is a generic name that shadows the meaning of `checklist_items`. In a function that also processes staging 'items' and 'entries', this name is ambiguous. A more descriptive name like `checklist_map` or `checklist_lookup` would clarify its role as a lookup dictionary.", "annotations": [{ "line": 404, "message": "items = checklist_items or {} -- 'items' is generic and ambiguous in a function that handles multiple kinds of items; prefer 'checklist_map' or 'checklist_lookup'" }] }
+  ]
+}

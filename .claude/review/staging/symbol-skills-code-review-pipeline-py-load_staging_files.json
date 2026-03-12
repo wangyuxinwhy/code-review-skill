@@ -1,0 +1,12 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "load_staging_files", "lines": [269, 271] },
+  "checks": [
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "no-primitive-obsession", "pass": false, "note": "Returns list[dict[str, Any]] but staging files have a known recurring schema with 'stage', 'target', and 'checks' keys. A StagingEntry TypedDict (or discriminated union of per-stage TypedDicts) would document the expected shape and catch key typos at type-check time.", "annotations": [{ "line": 269, "message": "Return type list[dict[str, Any]] loses the known staging file schema; consider a StagingEntry TypedDict or union type." }] },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": true }
+  ]
+}

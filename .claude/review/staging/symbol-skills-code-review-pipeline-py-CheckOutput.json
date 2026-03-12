@@ -1,0 +1,10 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "CheckOutput", "lines": [224, 229] },
+  "checks": [
+    { "id": "type-annotations", "pass": false, "note": "The `stats` field is typed as `dict[str, int]` but has a fixed schema with known keys (file_hit, file_miss, symbol_hit, symbol_miss) as seen at lines 637-642. A TypedDict would make the expected keys explicit and catch key typos at type-check time.", "annotations": [{ "line": 229, "message": "Consider a TypedDict for `stats` — the keys (file_hit, file_miss, symbol_hit, symbol_miss) are fixed and known." }] },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": true }
+  ]
+}

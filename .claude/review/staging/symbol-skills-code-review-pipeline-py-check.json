@@ -1,0 +1,13 @@
+{
+  "stage": "symbol",
+  "target": { "type": "symbol", "file": "skills/code-review/pipeline.py", "symbol": "check", "lines": [601, 643] },
+  "checks": [
+    { "id": "data-structure-fit", "pass": true },
+    { "id": "type-annotations", "pass": true },
+    { "id": "single-responsibility", "pass": true },
+    { "id": "parameter-breadth", "pass": true },
+    { "id": "redundant-docstrings", "pass": true },
+    { "id": "idiomatic-constructs", "pass": true },
+    { "id": "naming-clarity", "pass": false, "note": "Variables sym_cached and sym_review use the ad-hoc truncation 'sym' for 'symbol'. Per naming conventions, project-specific words should be spelled out.", "annotations": [{ "line": 617, "message": "sym_cached -> symbol_cached: 'sym' is an ad-hoc truncation of 'symbol'." }, { "line": 618, "message": "sym_review -> symbol_review: 'sym' is an ad-hoc truncation of 'symbol'." }] }
+  ]
+}
