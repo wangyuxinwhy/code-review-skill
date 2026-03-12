@@ -44,7 +44,7 @@ def compute_file_hash(path: Path) -> str:
 def compute_symbol_hash(path: Path, lines: tuple[int, int]) -> str:
     """Hash a symbol's source lines (1-indexed, inclusive range)."""
     all_lines = path.read_text().splitlines()
-    start, end = lines[0], lines[1]
+    start, end = lines
     selected = all_lines[start - 1 : end]
     content = "\n".join(selected)
     return "sha256:" + hashlib.sha256(content.encode()).hexdigest()
@@ -72,6 +72,7 @@ def load_cache(cache_path: Path, checklist_path: Path) -> CacheFile | None:
 class _FileCacheResult(NamedTuple):
     cached_files: list[str]
     review_files: list[str]
+    cached_entries: dict[str, CacheChecks]
     hit: int
     miss: int
 
@@ -87,11 +88,11 @@ class _SymbolCacheResult(NamedTuple):
 def _check_file_cache(
     files: Iterable[str],
     cache: CacheFile | None,
-    staging_dir: Path,
 ) -> _FileCacheResult:
-    """Partition files into cached/review by content hash, pre-write staging for hits."""
+    """Partition files into cached/review by content hash."""
     cached: list[str] = []
     review: list[str] = []
+    cached_entries: dict[str, CacheChecks] = {}
     hit = 0
     miss = 0
 
@@ -107,13 +108,13 @@ def _check_file_cache(
 
         if file_entry:
             cached.append(file_str)
+            cached_entries[file_str] = file_entry
             hit += 1
-            _write_cached_staging(file_str, file_entry, staging_dir)
         else:
             review.append(file_str)
             miss += 1
 
-    return _FileCacheResult(cached, review, hit, miss)
+    return _FileCacheResult(cached, review, cached_entries, hit, miss)
 
 
 def _check_symbol_cache(
@@ -191,7 +192,11 @@ def check(
     """
     cache = load_cache(cache_path, checklist_path)
 
-    file_result = _check_file_cache(files, cache, staging_dir)
+    file_result = _check_file_cache(files, cache)
+
+    # Write staging for cached file hits (separate from partitioning)
+    for file_str, file_entry in file_result.cached_entries.items():
+        _write_cached_staging(file_str, file_entry, staging_dir)
 
     symbol_cached = _check_symbol_cache(file_result.cached_files, cache, diff_symbols)
     symbol_review = _check_symbol_cache(file_result.review_files, cache, diff_symbols)
@@ -351,7 +356,7 @@ def build(
 
 
 def _discover_python_files(root: Path) -> list[Path]:
-    """Find all .py files under root, excluding hidden dirs and common non-source dirs."""
+    """Excludes hidden dirs, .venv, __pycache__, node_modules, .tox, .mypy_cache."""
     exclude = {".git", ".venv", "venv", "__pycache__", "node_modules", ".tox", ".mypy_cache"}
     results: list[Path] = []
     for path in root.rglob("*.py"):

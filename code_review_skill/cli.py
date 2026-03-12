@@ -9,6 +9,7 @@ import json
 import sys
 from importlib.resources import files as pkg_files
 from pathlib import Path
+from typing import NamedTuple
 
 import yaml
 
@@ -380,7 +381,7 @@ def main() -> None:
             else:
                 checklist_path = resolve_checklist()
                 print(Path(checklist_path).read_text())
-        case _:
+        case _:  # unreachable (subparsers required=True), but satisfies type checker
             pass
 
 
@@ -524,12 +525,18 @@ def _cmd_init() -> None:
     print(_build_init_instructions(default_checklist))
 
 
+class _InitCheckResult(NamedTuple):
+    name: str
+    passed: bool
+    detail: str
+
+
 def _cmd_init_check() -> None:
     checklist_path = Path(".code-review-checklist.yaml")
     staging_dir = Path(".code-review/staging")
     gitignore = Path(".gitignore")
 
-    checks: list[tuple[str, bool, str]] = []
+    checks: list[_InitCheckResult] = []
 
     # Check checklist file exists and parses
     if checklist_path.exists():
@@ -537,40 +544,40 @@ def _cmd_init_check() -> None:
             data = yaml.safe_load(checklist_path.read_text())
             items = data.get("items", [])
             pre_check = data.get("pre_check", "")
-            checks.append(("checklist file", True, str(checklist_path)))
-            checks.append(("checklist items", len(items) > 0, f"{len(items)} items"))
-            checks.append((
+            checks.append(_InitCheckResult("checklist file", True, str(checklist_path)))
+            checks.append(_InitCheckResult("checklist items", len(items) > 0, f"{len(items)} items"))
+            checks.append(_InitCheckResult(
                 "pre_check configured",
                 bool(pre_check) and pre_check != "make check",
                 repr(pre_check) if pre_check else "(not set)",
             ))
         except Exception as exc:
-            checks.append(("checklist file", False, f"parse error: {exc}"))
-            checks.append(("checklist items", False, "skipped"))
-            checks.append(("pre_check configured", False, "skipped"))
+            checks.append(_InitCheckResult("checklist file", False, f"parse error: {exc}"))
+            checks.append(_InitCheckResult("checklist items", False, "skipped"))
+            checks.append(_InitCheckResult("pre_check configured", False, "skipped"))
     else:
-        checks.append(("checklist file", False, "not found"))
-        checks.append(("checklist items", False, "skipped"))
-        checks.append(("pre_check configured", False, "skipped"))
+        checks.append(_InitCheckResult("checklist file", False, "not found"))
+        checks.append(_InitCheckResult("checklist items", False, "skipped"))
+        checks.append(_InitCheckResult("pre_check configured", False, "skipped"))
 
     # Check staging directory
-    checks.append(("staging directory", staging_dir.is_dir(), str(staging_dir)))
+    checks.append(_InitCheckResult("staging directory", staging_dir.is_dir(), str(staging_dir)))
 
     # Check .gitignore
     if gitignore.exists():
         content = gitignore.read_text()
         has_marker = ".code-review/" in content
-        checks.append((".gitignore entry", has_marker, ".code-review/ in .gitignore"))
+        checks.append(_InitCheckResult(".gitignore entry", has_marker, ".code-review/ in .gitignore"))
     else:
-        checks.append((".gitignore entry", False, ".gitignore not found"))
+        checks.append(_InitCheckResult(".gitignore entry", False, ".gitignore not found"))
 
     # Output results
     all_passed = True
-    for name, passed, detail in checks:
-        status = "PASS" if passed else "FAIL"
-        if not passed:
+    for result in checks:
+        status = "PASS" if result.passed else "FAIL"
+        if not result.passed:
             all_passed = False
-        print(f"  [{status}] {name}: {detail}")
+        print(f"  [{status}] {result.name}: {result.detail}")
 
     if all_passed:
         print("\nInit check passed. Project is ready for code review.")
