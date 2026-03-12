@@ -6,18 +6,21 @@ agents read it to learn how to use the tool autonomously.
 
 import argparse
 import json
-import shutil
 import sys
 from importlib.resources import files as pkg_files
 from pathlib import Path
 
+import yaml
+
 from code_review_skill.cache import build, check, refresh
 from code_review_skill.render import show
-from code_review_skill.staging import resolve_checklist
+from code_review_skill.staging import resolve_checklist, write_staging_entry
 from code_review_skill.symbols import (
     _filter_symbols_by_diff,
     _get_diff_hunks,
+    discover,
     extract_symbols,
+    extract_symbols_batch,
 )
 
 DESCRIPTION = """\
@@ -36,7 +39,8 @@ CHECKLIST RESOLUTION (highest priority first)
   2. .code-review-checklist.yaml     project-local customization
   3. Built-in default                zero-config, ships with package
 
-  To customize: code-review-skill init
+  To customize: code-review-skill init (outputs setup context for the agent)
+  To verify setup: code-review-skill init check
 
 GATE 0: PRE-CHECK
 
@@ -68,15 +72,34 @@ INFRASTRUCTURE
   Symbol extraction (code-review-skill symbols):
     AST-based deterministic symbol boundary detection.
 
+    Single file:
       code-review-skill symbols --file <path>
       code-review-skill symbols --file <path> --diff HEAD
 
-    Returns: [{ "name": "func", "type": "function", "lines": [10, 25] }]
+    Batch (grouped output by file):
+      code-review-skill symbols --files <path1> <path2> ...
+      code-review-skill symbols --files <path1> <path2> --diff main
+
+    Single-file returns: [{ "name": "func", "type": "function", "lines": [10, 25] }]
+    Batch returns: { "path/a.py": [symbols...], "path/b.py": [symbols...] }
+
+  Discovery (code-review-skill discover):
+    Find changed files and diff-touched symbols for a git range.
+
+      code-review-skill discover main
+      code-review-skill discover HEAD~3..HEAD
+
+    Returns: { "files": ["a.py", ...], "symbols": { "a.py": [symbols...] } }
+    files = all changed Python files; symbols = only files with diff-touched symbols.
 
   Staging directory (.code-review/staging/):
     All review findings are written here as JSON. Clean at review start:
 
       rm -rf .code-review/staging && mkdir -p .code-review/staging
+
+    Write findings via the stage command (reads JSON from stdin):
+
+      echo '<json>' | code-review-skill stage
 
     Check format:
       Passed/blocked (compact): { "id": "check-id", "pass": true/null }
@@ -100,19 +123,16 @@ INFRASTRUCTURE
 
 PIPELINE WORKFLOW
 
-  Step 1: Discover symbols
-    code-review-skill symbols --file <path>
+  Quick path (recommended):
+    code-review-skill review <range>
+    Returns a complete review plan with changed files, diff-touched symbols,
+    and cache status. Then dispatch subagents per review_symbols.
 
-  Step 2: Check cache
-    code-review-skill check --files <paths...>
-
-  Step 3: Dispatch subagents
-    File subagents for files in "review_files" (file-scope checks only).
-    Symbol subagents for symbols in "review_symbols" (AST boundaries).
-    Skip cached files and cached symbols (staging pre-written).
-
-  Step 4 (MANDATORY): Build cache
-    code-review-skill build
+  Manual path (step by step):
+    Step 1: code-review-skill discover <range>
+    Step 2: code-review-skill check --files <paths...> --diff <range>
+    Step 3: Dispatch subagents, write findings via: code-review-skill stage
+    Step 4: code-review-skill build
 
 PRINCIPLES
 
@@ -126,7 +146,7 @@ PRINCIPLES
     Subagents read the checklist themselves.
 
   Caching:
-    MANDATORY: always run check before dispatching review.
+    MANDATORY: always run check (or review) before dispatching review.
     MANDATORY: always run build after staging is complete.
 
   Curator judgment:
@@ -154,13 +174,16 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # symbols subcommand
-    symbols_parser = subparsers.add_parser("symbols", help="Extract symbols from a Python file using AST")
-    symbols_parser.add_argument("--file", required=True, help="Python file to analyze")
+    symbols_parser = subparsers.add_parser("symbols", help="Extract symbols from Python files using AST")
+    symbols_group = symbols_parser.add_mutually_exclusive_group(required=True)
+    symbols_group.add_argument("--file", help="Single Python file to analyze")
+    symbols_group.add_argument("--files", nargs="+", help="Multiple Python files to analyze (grouped output)")
     symbols_parser.add_argument("--diff", default=None, help="Git diff range to filter by changed hunks")
 
     # check subcommand
     check_parser = subparsers.add_parser("check", help="Check files against cache")
     check_parser.add_argument("--files", nargs="+", required=True, help="Files to check")
+    check_parser.add_argument("--diff", default=None, help="Git diff range to filter symbols by changed hunks")
     check_parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
     check_parser.add_argument("--checklist", type=Path, default=None, help="Override checklist path")
     check_parser.add_argument("--staging", type=Path, default=DEFAULT_STAGING)
@@ -188,7 +211,49 @@ def main() -> None:
     )
 
     # init subcommand
-    subparsers.add_parser("init", help="Initialize project with checklist and .code-review/ directory")
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Output project initialization context, or verify setup with 'init check'",
+    )
+    init_parser.add_argument(
+        "init_action",
+        nargs="?",
+        default=None,
+        choices=["check"],
+        help="Optional action: 'check' to verify project setup",
+    )
+
+    # discover subcommand
+    discover_parser = subparsers.add_parser(
+        "discover",
+        help="Discover changed files and diff-touched symbols for a git range",
+    )
+    discover_parser.add_argument(
+        "range",
+        help="Git diff range (e.g., 'main', 'HEAD~3..HEAD')",
+    )
+
+    # stage subcommand
+    stage_parser = subparsers.add_parser(
+        "stage",
+        help="Write a staging entry from stdin JSON",
+    )
+    stage_parser.add_argument("--staging", type=Path, default=DEFAULT_STAGING)
+
+    # review subcommand
+    review_parser = subparsers.add_parser(
+        "review",
+        help="Orchestrate full review: discover → check cache → output review plan",
+    )
+    review_parser.add_argument(
+        "range",
+        nargs="?",
+        default="HEAD",
+        help="Git diff range (default: HEAD)",
+    )
+    review_parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
+    review_parser.add_argument("--checklist", type=Path, default=None)
+    review_parser.add_argument("--staging", type=Path, default=DEFAULT_STAGING)
 
     # checklist subcommand
     checklist_parser = subparsers.add_parser("checklist", help="Print the active checklist")
@@ -198,23 +263,29 @@ def main() -> None:
 
     match args.command:
         case "symbols":
-            file_path = Path(args.file)
-            if not file_path.exists():
-                print(f"File not found: {args.file}", file=sys.stderr)
-                sys.exit(1)
-            source = file_path.read_text()
-            symbols = extract_symbols(source)
-            if args.diff:
-                diff_hunks = _get_diff_hunks(args.file, args.diff)
-                symbols = _filter_symbols_by_diff(symbols, diff_hunks)
-            print(json.dumps(symbols, indent=2))
+            if args.files:
+                result = extract_symbols_batch(args.files, diff_range=args.diff)
+                print(json.dumps(result, indent=2))
+            else:
+                file_path = Path(args.file)
+                if not file_path.exists():
+                    print(f"File not found: {args.file}", file=sys.stderr)
+                    sys.exit(1)
+                source = file_path.read_text()
+                symbols = extract_symbols(source)
+                if args.diff:
+                    diff_hunks = _get_diff_hunks(args.file, args.diff)
+                    symbols = _filter_symbols_by_diff(symbols, diff_hunks)
+                print(json.dumps(symbols, indent=2))
         case "check":
             checklist_path = resolve_checklist(args.checklist)
+            diff_symbols = discover(args.diff)["symbols"] if args.diff else None
             result = check(
                 files=args.files,
                 cache_path=args.cache,
                 checklist_path=checklist_path,
                 staging_dir=args.staging,
+                diff_symbols=diff_symbols,
             )
             print(json.dumps(result, indent=2))
         case "build":
@@ -264,8 +335,44 @@ def main() -> None:
                         f"  Orphaned hashes: {stats['orphaned_file_hashes']} file(s), "
                         f"{stats['orphaned_symbol_hashes']} symbol(s)"
                     )
+        case "discover":
+            discovery = discover(args.range)
+            print(json.dumps(discovery, indent=2))
+        case "stage":
+            raw = sys.stdin.read()
+            try:
+                entry = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                print(f"Invalid JSON on stdin: {exc}", file=sys.stderr)
+                sys.exit(1)
+            path = write_staging_entry(args.staging, entry)
+            print(json.dumps({"written": str(path)}))
+        case "review":
+            checklist_path = resolve_checklist(args.checklist)
+            discovery = discover(args.range)
+            check_result = check(
+                files=discovery["files"],
+                cache_path=args.cache,
+                checklist_path=checklist_path,
+                staging_dir=args.staging,
+                diff_symbols=discovery["symbols"],
+            )
+            plan = {
+                "diff_range": args.range,
+                "changed_files": discovery["files"],
+                "diff_symbols": discovery["symbols"],
+                "review_files": check_result["review_files"],
+                "cached_files": check_result["cached_files"],
+                "review_symbols": check_result["review_symbols"],
+                "cached_symbols": check_result["cached_symbols"],
+                "stats": check_result["stats"],
+            }
+            print(json.dumps(plan, indent=2))
         case "init":
-            _cmd_init()
+            if args.init_action == "check":
+                _cmd_init_check()
+            else:
+                _cmd_init()
         case "checklist":
             if args.builtin:
                 builtin = pkg_files("code_review_skill.data").joinpath("checklist.yaml")
@@ -277,34 +384,196 @@ def main() -> None:
             pass
 
 
+def _build_init_instructions(default_checklist: str) -> str:
+    return f"""\
+CODE REVIEW SKILL — PROJECT INITIALIZATION CONTEXT
+
+This document provides the context you need to set up code-review-skill
+for this project. It explains what each component does and why it exists,
+so you can configure it appropriately for this project.
+
+After setup, run: code-review-skill init check
+
+══════════════════════════════════════════════════════════════════
+PROJECT STRUCTURE
+══════════════════════════════════════════════════════════════════
+
+code-review-skill uses a local .code-review/ directory and a project-level
+checklist file. Here is what each piece does:
+
+  .code-review/staging/
+    The staging area for review findings. During a review, each subagent
+    writes its findings here as JSON files (one per file or symbol reviewed).
+    The staging directory is cleaned at the start of each review and merged
+    into the cache by `code-review-skill build`. This directory must exist
+    before running any review.
+
+  .code-review/cache.json
+    Incremental review cache. Stores results keyed by content hash so that
+    unchanged files and symbols are skipped on subsequent reviews. Created
+    automatically by the build command.
+
+  .code-review-checklist.yaml
+    The checklist file — the sole source of truth for what gets reviewed.
+    Contains the pre_check command, review categories, and individual
+    check items. This file should be committed to version control so the
+    team shares the same review standards.
+
+  .gitignore
+    The .code-review/ directory contains runtime artifacts (staging files,
+    cache) and should be excluded from version control.
+
+══════════════════════════════════════════════════════════════════
+DEFAULT CHECKLIST TEMPLATE
+══════════════════════════════════════════════════════════════════
+
+Below is the built-in default checklist. It is designed for Python projects
+and serves as a starting point — the items are common examples, not a
+definitive list. You should adapt it to this project's language, framework,
+and domain.
+
+Write the checklist to: .code-review-checklist.yaml
+
+--- BEGIN DEFAULT CHECKLIST ---
+{default_checklist}\
+--- END DEFAULT CHECKLIST ---
+
+══════════════════════════════════════════════════════════════════
+ABOUT pre_check
+══════════════════════════════════════════════════════════════════
+
+The pre_check field defines a shell command that runs as Gate 0 — before
+any LLM-based review begins. Its purpose is to ensure baseline quality
+(linting, type checking, tests) passes before investing in deeper review.
+The command should exit 0 on success.
+
+The default value "make check" is a placeholder. Configure it to match
+this project's actual quality checks. Common choices:
+
+  Python:      pytest, ruff check ., mypy ., ruff check . && pytest
+  JavaScript:  npm test, npm run lint
+  TypeScript:  npx tsc --noEmit && npm test
+  Rust:        cargo test
+  Go:          go test ./...
+  Make-based:  make check, make lint
+
+If the project has no automated checks yet, remove the pre_check field
+entirely — Gate 0 will be skipped.
+
+══════════════════════════════════════════════════════════════════
+CHECKLIST CUSTOMIZATION
+══════════════════════════════════════════════════════════════════
+
+The default checklist contains {_count_items(default_checklist)} items oriented toward
+Python projects. Different project types benefit from different checks.
+
+Consider the project's language, framework, and domain:
+
+  - Items like constructor-purity, type-annotations, and
+    idiomatic-constructs are Python-specific and may not apply to
+    other languages.
+  - Frontend projects often benefit from checks around accessibility,
+    component structure, and state management patterns.
+  - Data and ML projects may need checks for data validation,
+    reproducibility, and pipeline correctness.
+  - API projects may need checks for error response consistency,
+    input validation, and authentication handling.
+
+Each checklist item follows this schema:
+
+  - id: kebab-case-unique-identifier
+    category: design | correctness | readability
+    scope: changeset | file | symbol
+    level: blocking | advisory
+    when: "optional condition for when this check applies"
+    description: "one-line summary shown in reports"
+    prompt: |
+      Multi-line instructions for the reviewing agent.
+      Be specific about what to flag and what NOT to flag.
+
+  scope meanings:
+    changeset — evaluated against the entire set of changes
+    file      — evaluated per file
+    symbol    — evaluated per function/class (AST-extracted)
+
+  level meanings:
+    blocking  — failure stops downstream checks at this scope
+    advisory  — reported but does not block
+
+══════════════════════════════════════════════════════════════════
+VALIDATION
+══════════════════════════════════════════════════════════════════
+
+After configuring the checklist, verify everything is set up correctly:
+
+  code-review-skill init check
+
+This command checks that all required files and directories exist,
+the checklist parses correctly, and pre_check is configured.
+"""
+
+
+def _count_items(checklist_content: str) -> int:
+    """Count the number of checklist items by looking for '- id:' lines."""
+    return sum(1 for line in checklist_content.splitlines() if line.strip().startswith("- id:"))
+
+
 def _cmd_init() -> None:
-    checklist_dest = Path(".code-review-checklist.yaml")
-    code_review_dir = Path(".code-review")
-    staging_dir = code_review_dir / "staging"
+    builtin = pkg_files("code_review_skill.data").joinpath("checklist.yaml")
+    default_checklist = builtin.read_text()
+    print(_build_init_instructions(default_checklist))
+
+
+def _cmd_init_check() -> None:
+    checklist_path = Path(".code-review-checklist.yaml")
+    staging_dir = Path(".code-review/staging")
     gitignore = Path(".gitignore")
 
-    # Copy built-in checklist
-    if checklist_dest.exists():
-        print(f"Already exists: {checklist_dest}")
+    checks: list[tuple[str, bool, str]] = []
+
+    # Check checklist file exists and parses
+    if checklist_path.exists():
+        try:
+            data = yaml.safe_load(checklist_path.read_text())
+            items = data.get("items", [])
+            pre_check = data.get("pre_check", "")
+            checks.append(("checklist file", True, str(checklist_path)))
+            checks.append(("checklist items", len(items) > 0, f"{len(items)} items"))
+            checks.append((
+                "pre_check configured",
+                bool(pre_check) and pre_check != "make check",
+                repr(pre_check) if pre_check else "(not set)",
+            ))
+        except Exception as exc:
+            checks.append(("checklist file", False, f"parse error: {exc}"))
+            checks.append(("checklist items", False, "skipped"))
+            checks.append(("pre_check configured", False, "skipped"))
     else:
-        builtin = pkg_files("code_review_skill.data").joinpath("checklist.yaml")
-        shutil.copy2(str(builtin), str(checklist_dest))
-        print(f"Created: {checklist_dest}")
+        checks.append(("checklist file", False, "not found"))
+        checks.append(("checklist items", False, "skipped"))
+        checks.append(("pre_check configured", False, "skipped"))
 
-    # Create .code-review/staging/
-    staging_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Created: {staging_dir}/")
+    # Check staging directory
+    checks.append(("staging directory", staging_dir.is_dir(), str(staging_dir)))
 
-    # Add .code-review/ to .gitignore
-    marker = ".code-review/"
+    # Check .gitignore
     if gitignore.exists():
         content = gitignore.read_text()
-        if marker not in content:
-            with gitignore.open("a") as f:
-                if not content.endswith("\n"):
-                    f.write("\n")
-                f.write(f"{marker}\n")
-            print(f"Added {marker} to .gitignore")
+        has_marker = ".code-review/" in content
+        checks.append((".gitignore entry", has_marker, ".code-review/ in .gitignore"))
     else:
-        gitignore.write_text(f"{marker}\n")
-        print(f"Created .gitignore with {marker}")
+        checks.append((".gitignore entry", False, ".gitignore not found"))
+
+    # Output results
+    all_passed = True
+    for name, passed, detail in checks:
+        status = "PASS" if passed else "FAIL"
+        if not passed:
+            all_passed = False
+        print(f"  [{status}] {name}: {detail}")
+
+    if all_passed:
+        print("\nInit check passed. Project is ready for code review.")
+    else:
+        print("\nSome checks failed. Review the items above and complete setup.")
+        sys.exit(1)

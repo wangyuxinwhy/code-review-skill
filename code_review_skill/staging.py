@@ -71,6 +71,40 @@ def load_staging_files(staging_dir: Path) -> list[StagingEntry]:
     return [json.loads(file_path.read_text()) for file_path in files]
 
 
+def write_staging_entry(staging_dir: Path, entry: StagingEntry) -> Path:
+    """Write a staging entry to the staging directory, return the written path.
+
+    Filename is derived from the entry's stage and target:
+      changeset → changeset.json
+      file      → file-{sanitized}.json
+      symbol    → symbol-{sanitized}-{name}.json
+    """
+    stage = entry.get("stage", "unknown")
+
+    def sanitize(s: str) -> str:
+        return s.replace("/", "-").replace(".", "-")
+
+    match stage:
+        case "changeset":
+            filename = "changeset.json"
+        case "file":
+            target = entry.get("target", {})
+            file_str = target.get("file", "unknown")
+            filename = f"file-{sanitize(file_str)}.json"
+        case "symbol":
+            target = entry.get("target", {})
+            file_str = target.get("file", "unknown")
+            symbol_name = target.get("symbol", "unknown")
+            filename = f"symbol-{sanitize(file_str)}-{sanitize(symbol_name)}.json"
+        case _:
+            filename = f"{stage}.json"
+
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    path = staging_dir / filename
+    path.write_text(json.dumps(entry, indent=2, ensure_ascii=False) + "\n")
+    return path
+
+
 # --- Enrichment and sorting ---
 
 

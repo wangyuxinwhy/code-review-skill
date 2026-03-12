@@ -3,6 +3,7 @@
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 from typing import Any, ClassVar, cast
 
@@ -29,8 +30,14 @@ from code_review_skill.staging import (
     resolve_checklist,
     sort_checks,
     target_sort_key,
+    write_staging_entry,
 )
-from code_review_skill.symbols import _filter_symbols_by_diff, extract_symbols
+from code_review_skill.symbols import (
+    _filter_symbols_by_diff,
+    discover_changed_files,
+    extract_symbols,
+    extract_symbols_batch,
+)
 from code_review_skill.types import StagingEntry, SymbolDef, TargetEntry
 
 STAGING_DIR = Path(__file__).parent / "staging"
@@ -1356,3 +1363,244 @@ class TestRestoreSymbolTarget:
         result = _restore_symbol_target("b.py", symbol_def, cache_checks)
 
         assert result["checks"] == [{"id": "a", "pass": True}]
+
+
+class TestBuildInitInstructions:
+    def test_contains_default_checklist(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        checklist = "version: \"2\"\nitems:\n  - id: test-item\n"
+        result = _build_init_instructions(checklist)
+
+        assert "- id: test-item" in result
+        assert "--- BEGIN DEFAULT CHECKLIST ---" in result
+        assert "--- END DEFAULT CHECKLIST ---" in result
+
+    def test_contains_project_structure_context(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+
+        assert ".code-review/staging/" in result
+        assert ".code-review/cache.json" in result
+        assert ".code-review-checklist.yaml" in result
+        assert ".gitignore" in result
+
+    def test_contains_precheck_context(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+
+        assert "pre_check" in result
+        assert "Gate 0" in result
+        assert "pytest" in result
+        assert "npm test" in result
+
+    def test_contains_checklist_schema(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+
+        assert "changeset" in result
+        assert "blocking" in result
+        assert "advisory" in result
+
+    def test_contains_validation_command(self) -> None:
+        from code_review_skill.cli import _build_init_instructions
+
+        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+
+        assert "code-review-skill init check" in result
+
+    def test_counts_items_correctly(self) -> None:
+        from code_review_skill.cli import _count_items
+
+        checklist = "items:\n  - id: foo\n  - id: bar\n  - id: baz\n"
+        assert _count_items(checklist) == 3
+
+    def test_counts_zero_items(self) -> None:
+        from code_review_skill.cli import _count_items
+
+        assert _count_items("items: []\n") == 0
+
+
+class TestInitCheck:
+    def test_fails_when_nothing_configured(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        from code_review_skill.cli import _cmd_init_check
+
+        with pytest.raises(SystemExit) as exc_info:
+            _cmd_init_check()
+        assert exc_info.value.code == 1
+
+    def test_passes_when_fully_configured(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        # Create staging dir
+        (tmp_path / ".code-review" / "staging").mkdir(parents=True)
+
+        # Create .gitignore
+        (tmp_path / ".gitignore").write_text(".code-review/\n")
+
+        # Create checklist with custom pre_check
+        (tmp_path / ".code-review-checklist.yaml").write_text(
+            'version: "2"\npre_check: "pytest"\nitems:\n  - id: test\n    category: design\n    scope: symbol\n    level: advisory\n    description: "test"\n    prompt: "test"\n'
+        )
+
+        from code_review_skill.cli import _cmd_init_check
+
+        # Should not raise
+        _cmd_init_check()
+
+    def test_fails_with_default_precheck(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        (tmp_path / ".code-review" / "staging").mkdir(parents=True)
+        (tmp_path / ".gitignore").write_text(".code-review/\n")
+        (tmp_path / ".code-review-checklist.yaml").write_text(
+            'version: "2"\npre_check: "make check"\nitems:\n  - id: test\n    category: design\n    scope: symbol\n    level: advisory\n    description: "test"\n    prompt: "test"\n'
+        )
+
+        from code_review_skill.cli import _cmd_init_check
+
+        with pytest.raises(SystemExit) as exc_info:
+            _cmd_init_check()
+        assert exc_info.value.code == 1
+
+
+# --- Batch symbols tests ---
+
+
+class TestExtractSymbolsBatch:
+    MULTI_SOURCE: ClassVar[str] = (
+        "def foo():\n    pass\n\ndef bar():\n    pass\n"
+    )
+
+    def test_batch_multiple_files(self, tmp_path: Path) -> None:
+        f1 = _make_source_file(tmp_path, "a.py", self.MULTI_SOURCE)
+        f2 = _make_source_file(tmp_path, "b.py", "class Baz:\n    pass\n")
+        result = extract_symbols_batch([str(f1), str(f2)])
+        assert str(f1) in result
+        assert str(f2) in result
+        assert len(result[str(f1)]) == 2
+        assert result[str(f2)][0]["name"] == "Baz"
+
+    def test_batch_skips_missing_files(self, tmp_path: Path) -> None:
+        f1 = _make_source_file(tmp_path, "a.py", self.MULTI_SOURCE)
+        result = extract_symbols_batch([str(f1), str(tmp_path / "nonexistent.py")])
+        assert str(f1) in result
+        assert str(tmp_path / "nonexistent.py") not in result
+
+    def test_batch_empty_file_excluded(self, tmp_path: Path) -> None:
+        """Files with no symbols are excluded from output."""
+        f1 = _make_source_file(tmp_path, "empty.py", "# just a comment\nx = 1\n")
+        result = extract_symbols_batch([str(f1)])
+        assert str(f1) not in result
+
+    def test_batch_no_diff(self, tmp_path: Path) -> None:
+        f1 = _make_source_file(tmp_path, "a.py", self.MULTI_SOURCE)
+        result = extract_symbols_batch([str(f1)], diff_range=None)
+        assert len(result[str(f1)]) == 2
+
+
+class TestDiscoverChangedFiles:
+    def test_filters_python_files(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        original_run = subprocess.run
+
+        def mock_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if "diff" in cmd and "--name-only" in cmd:
+                return subprocess.CompletedProcess(
+                    cmd, 0, stdout="a.py\nb.js\nc.py\nREADME.md\n", stderr=""
+                )
+            return original_run(cmd, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+        result = discover_changed_files("main")
+        assert result == ["a.py", "c.py"]
+
+    def test_empty_diff(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        original_run = subprocess.run
+
+        def mock_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if "diff" in cmd and "--name-only" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            return original_run(cmd, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+        result = discover_changed_files("main")
+        assert result == []
+
+
+class TestWriteStagingEntry:
+    def test_writes_changeset(self, tmp_path: Path) -> None:
+        staging_dir = tmp_path / "staging"
+        staging_dir.mkdir()
+        entry: StagingEntry = {
+            "stage": "changeset",
+            "target": {"type": "changeset"},
+            "checks": [],
+        }
+        path = write_staging_entry(staging_dir, entry)
+        assert path.name == "changeset.json"
+        assert path.exists()
+        data = json.loads(path.read_text())
+        assert data["stage"] == "changeset"
+
+    def test_writes_file_entry(self, tmp_path: Path) -> None:
+        staging_dir = tmp_path / "staging"
+        staging_dir.mkdir()
+        entry: StagingEntry = {
+            "stage": "file",
+            "target": {"type": "file", "file": "src/foo.py"},
+            "checks": [],
+        }
+        path = write_staging_entry(staging_dir, entry)
+        assert path.name == "file-src-foo-py.json"
+        assert json.loads(path.read_text())["target"]["file"] == "src/foo.py"
+
+    def test_writes_symbol_entry(self, tmp_path: Path) -> None:
+        staging_dir = tmp_path / "staging"
+        staging_dir.mkdir()
+        entry: StagingEntry = {
+            "stage": "symbol",
+            "target": {"type": "symbol", "file": "foo.py", "symbol": "bar", "lines": [1, 5]},
+            "checks": [],
+        }
+        path = write_staging_entry(staging_dir, entry)
+        assert path.name == "symbol-foo-py-bar.json"
+
+    def test_creates_staging_dir(self, tmp_path: Path) -> None:
+        staging_dir = tmp_path / "new" / "staging"
+        entry: StagingEntry = {
+            "stage": "changeset",
+            "target": {"type": "changeset"},
+            "checks": [],
+        }
+        path = write_staging_entry(staging_dir, entry)
+        assert path.exists()
+
+
+class TestCheckWithDiff:
+    """Test that check() with diff_symbols filters symbols."""
+
+    SOURCE: ClassVar[str] = "def changed():\n    pass\n\ndef unchanged():\n    pass\n"
+
+    def test_without_diff_returns_all_symbols(self, tmp_path: Path) -> None:
+        staging_dir = tmp_path / "staging"
+        staging_dir.mkdir()
+        checklist_path = _make_checklist(tmp_path)
+        source_file = _make_source_file(tmp_path, "code.py", self.SOURCE)
+
+        result = check(
+            files=[str(source_file)],
+            cache_path=tmp_path / "cache.json",
+            checklist_path=checklist_path,
+            staging_dir=staging_dir,
+            diff_symbols=None,
+        )
+        # Without diff, all symbols should be in review_symbols
+        all_review_symbols = []
+        for symbols in result["review_symbols"].values():
+            all_review_symbols.extend(symbols)
+        assert "changed" in all_review_symbols
+        assert "unchanged" in all_review_symbols
