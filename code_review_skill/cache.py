@@ -5,12 +5,12 @@ import json
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import Any, NamedTuple, cast
 
 from code_review_skill.staging import (
+    _compute_summary,
     _convert_annotations_to_offsets,
     _convert_offsets_to_lines,
-    _count_checks,
     _extract_symbol_entries,
     _normalize_symbol_target,
     has_non_pass,
@@ -50,6 +50,14 @@ def compute_symbol_hash(path: Path, lines: tuple[int, int]) -> str:
     return "sha256:" + hashlib.sha256(content.encode()).hexdigest()
 
 
+def _hash_symbol_from_lines(all_lines: list[str], lines: tuple[int, int]) -> str:
+    """Hash a symbol from pre-read source lines (avoids re-reading the file)."""
+    start, end = lines
+    selected = all_lines[start - 1 : end]
+    content = "\n".join(selected)
+    return "sha256:" + hashlib.sha256(content.encode()).hexdigest()
+
+
 # --- Cache: check ---
 
 
@@ -58,7 +66,7 @@ def load_cache(cache_path: Path, checklist_path: Path) -> CacheFile | None:
     if not cache_path.exists():
         return None
     try:
-        data = json.loads(cache_path.read_text())
+        data: dict[str, Any] = json.loads(cache_path.read_text())
     except (json.JSONDecodeError, OSError):
         return None
     if data.get("version") != "3" or "files" not in data:
@@ -140,6 +148,7 @@ def _check_symbol_cache(
             continue
         try:
             source = file_path.read_text()
+            all_lines = source.splitlines()
             symbols = extract_symbols(source)
         except OSError:
             continue
@@ -153,7 +162,7 @@ def _check_symbol_cache(
         file_review: list[str] = []
         for symbol in symbols:
             try:
-                symbol_hash = compute_symbol_hash(file_path, symbol["lines"])
+                symbol_hash = _hash_symbol_from_lines(all_lines, symbol["lines"])
             except (IndexError, ValueError):
                 file_review.append(symbol["name"])
                 miss += 1
@@ -172,6 +181,38 @@ def _check_symbol_cache(
             review_symbols[file_str] = file_review
 
     return _SymbolCacheResult(cached_symbols, review_symbols, symbol_targets, hit, miss)
+
+
+def _build_cached_staging_entry(file_str: str, cache_checks: CacheChecks) -> dict[str, Any]:
+    """Build a staging entry dict from cached checks, converting offsets to lines."""
+    checks_with_lines = _convert_offsets_to_lines(cache_checks["checks"], base_line=1)
+    return {
+        "stage": "file",
+        "target": {"type": "file", "file": file_str},
+        "checks": checks_with_lines,
+    }
+
+
+def _write_cached_staging(file_str: str, cache_checks: CacheChecks, staging_dir: Path) -> None:
+    """Write a cached file's staging file, converting offsets back to absolute lines."""
+    staging = _build_cached_staging_entry(file_str, cache_checks)
+    sanitized = file_str.replace("/", "-").replace(".", "-")
+    staging_path = staging_dir / f"file-{sanitized}.json"
+    staging_path.write_text(json.dumps(staging, indent=2, ensure_ascii=False) + "\n")
+
+
+def _write_cache_hits_to_staging(
+    file_entries: dict[str, CacheChecks],
+    symbol_targets: list[TargetEntry],
+    staging_dir: Path,
+) -> None:
+    """Write staging files for all cache hits (file-level and symbol-level)."""
+    for file_str, file_entry in file_entries.items():
+        _write_cached_staging(file_str, file_entry, staging_dir)
+    if symbol_targets:
+        symbol_staging = {"stage": "symbol", "targets": symbol_targets}
+        sym_path = staging_dir / "symbol-cached.json"
+        sym_path.write_text(json.dumps(symbol_staging, indent=2, ensure_ascii=False) + "\n")
 
 
 def check(
@@ -193,25 +234,15 @@ def check(
     cache = load_cache(cache_path, checklist_path)
 
     file_result = _check_file_cache(files, cache)
-
-    # Write staging for cached file hits (separate from partitioning)
-    for file_str, file_entry in file_result.cached_entries.items():
-        _write_cached_staging(file_str, file_entry, staging_dir)
-
     symbol_cached = _check_symbol_cache(file_result.cached_files, cache, diff_symbols)
     symbol_review = _check_symbol_cache(file_result.review_files, cache, diff_symbols)
 
     cached_symbols = {**symbol_cached.cached_symbols, **symbol_review.cached_symbols}
     review_symbols = symbol_review.review_symbols
-    symbol_hit = symbol_cached.hit + symbol_review.hit
-    symbol_miss = symbol_cached.miss + symbol_review.miss
     all_symbol_targets = symbol_cached.symbol_targets + symbol_review.symbol_targets
 
-    # Write symbol-cached.json
-    if all_symbol_targets:
-        symbol_staging = {"stage": "symbol", "targets": all_symbol_targets}
-        sym_path = staging_dir / "symbol-cached.json"
-        sym_path.write_text(json.dumps(symbol_staging, indent=2, ensure_ascii=False) + "\n")
+    # Side effect: write staging for cache hits
+    _write_cache_hits_to_staging(file_result.cached_entries, all_symbol_targets, staging_dir)
 
     return CheckOutput(
         cached_files=file_result.cached_files,
@@ -221,23 +252,10 @@ def check(
         stats=CacheStats(
             file_hit=file_result.hit,
             file_miss=file_result.miss,
-            symbol_hit=symbol_hit,
-            symbol_miss=symbol_miss,
+            symbol_hit=symbol_cached.hit + symbol_review.hit,
+            symbol_miss=symbol_cached.miss + symbol_review.miss,
         ),
     )
-
-
-def _write_cached_staging(file_str: str, cache_checks: CacheChecks, staging_dir: Path) -> None:
-    """Write a cached file's staging file, converting offsets back to absolute lines."""
-    checks_with_lines = _convert_offsets_to_lines(cache_checks["checks"], base_line=1)
-    staging = {
-        "stage": "file",
-        "target": {"type": "file", "file": file_str},
-        "checks": checks_with_lines,
-    }
-    sanitized = file_str.replace("/", "-").replace(".", "-")
-    staging_path = staging_dir / f"file-{sanitized}.json"
-    staging_path.write_text(json.dumps(staging, indent=2, ensure_ascii=False) + "\n")
 
 
 def _restore_symbol_target(file_str: str, symbol_def: SymbolDef, cache_checks: CacheChecks) -> TargetEntry:
@@ -303,22 +321,8 @@ def _build_symbols_cache(staging_files: Iterable[StagingEntry]) -> dict[str, Cac
     return symbols_cache
 
 
-def build(
-    staging_dir: Path,
-    cache_path: Path,
-    checklist_path: Path,
-) -> CacheFile:
-    """Load staging files, enrich checks from checklist, assemble hash-keyed
-    cache sections, and write the combined cache.json v3 to disk."""
-    staging_files = load_staging_files(staging_dir)
-    if not staging_files:
-        raise ValueError("No staging files found")
-
-    checklist = load_checklist(checklist_path)
-    checklist_version = checklist["version"]
-    targets, _symbols_reviewed, summary = merge_staging(staging_files, checklist["items"])
-
-    # Convert annotations from absolute line to offset in targets
+def _convert_target_annotations_to_offsets(targets: list[TargetEntry]) -> None:
+    """Convert annotation line numbers to offsets in-place for cache storage."""
     for target_entry in targets:
         target = target_entry["target"]
         match target:
@@ -333,31 +337,53 @@ def build(
             _convert_annotations_to_offsets(target_entry["checks"], base_line),
         )
 
+
+def _write_cache_file(cache_data: CacheFile, cache_path: Path) -> None:
+    """Serialize and write cache data to disk."""
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(cache_data, indent=2, ensure_ascii=False) + "\n")
+
+
+def build(
+    staging_dir: Path,
+    cache_path: Path,
+    checklist_path: Path,
+) -> CacheFile:
+    """Load staging files, enrich checks from checklist, assemble hash-keyed
+    cache sections, and write the combined cache.json v3 to disk."""
+    staging_files = load_staging_files(staging_dir)
+    if not staging_files:
+        raise ValueError("No staging files found")
+
+    checklist = load_checklist(checklist_path)
+    targets, _symbols_reviewed, summary = merge_staging(staging_files, checklist["items"])
+
+    _convert_target_annotations_to_offsets(targets)
+
     files_cache = _build_files_cache(staging_files)
     symbols_cache = _build_symbols_cache(staging_files)
 
-    # Assemble combined cache file
     cache_data = CacheFile(
         version="3",
         timestamp=datetime.now(UTC).isoformat(),
-        checklist_version=checklist_version,
+        checklist_version=checklist["version"],
         summary=summary,
         targets=targets,
         files=files_cache,
         symbols=symbols_cache,
     )
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(json.dumps(cache_data, indent=2, ensure_ascii=False) + "\n")
-
+    _write_cache_file(cache_data, cache_path)
     return cache_data
 
 
 # --- Refresh (self-heal) ---
 
 
-def _discover_python_files(root: Path) -> list[Path]:
-    """Excludes hidden dirs, .venv, __pycache__, node_modules, .tox, .mypy_cache."""
-    exclude = {".git", ".venv", "venv", "__pycache__", "node_modules", ".tox", ".mypy_cache"}
+_DEFAULT_EXCLUDE = frozenset({".git", ".venv", "venv", "__pycache__", "node_modules", ".tox", ".mypy_cache"})
+
+
+def _discover_python_files(root: Path, exclude: frozenset[str] = _DEFAULT_EXCLUDE) -> list[Path]:
+    """Find all Python files under root, excluding specified directory names."""
     results: list[Path] = []
     for path in root.rglob("*.py"):
         if any(part in exclude for part in path.parts):
@@ -396,7 +422,7 @@ def _verify_targets(data: CacheFile, root: Path) -> bool:
                     return False
 
             case _:
-                pass
+                return False
 
     return True
 
@@ -417,8 +443,6 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
     if data.get("version") != "3":
         raise ValueError(f"Unsupported cache version: {data.get('version')}")
 
-    files_cache = data.get("files", {})
-    symbols_cache = data.get("symbols", {})
     targets_before = len(data.get("targets", []))
 
     # Fast path: verify existing targets are still valid
@@ -435,24 +459,30 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
         )
 
     # Slow path: full rescan
-    return _rescan_files(data, cache_path, root, files_cache, symbols_cache, targets_before)
+    return _rescan_files(data, cache_path, root)
 
 
-def _rescan_files(
-    data: CacheFile,
-    cache_path: Path,
+class _RescanResult(NamedTuple):
+    """Results from scanning files against cache hashes."""
+    new_targets: list[TargetEntry]
+    all_entries: list[TargetEntry]
+    symbols_reviewed: int
+    matched_file_hashes: set[str]
+    matched_symbol_hashes: set[str]
+    files_scanned: int
+
+
+def _scan_files_against_cache(
     root: Path,
+    changeset_targets: list[TargetEntry],
     files_cache: dict[str, CacheChecks],
     symbols_cache: dict[str, CacheChecks],
-    targets_before: int,
-) -> RefreshStats:
-    new_targets: list[TargetEntry] = [
-        entry for entry in data.get("targets", []) if entry["target"]["type"] == "changeset"
-    ]
-
+) -> _RescanResult:
+    """Scan Python files under root, matching content hashes against cache."""
+    new_targets: list[TargetEntry] = list(changeset_targets)
+    all_entries: list[TargetEntry] = list(changeset_targets)
     matched_file_hashes: set[str] = set()
     matched_symbol_hashes: set[str] = set()
-    all_entries: list[TargetEntry] = list(new_targets)
     symbols_reviewed = 0
 
     python_files = _discover_python_files(root)
@@ -466,67 +496,91 @@ def _rescan_files(
         file_hash = compute_file_hash(file_path)
         if file_hash in files_cache:
             matched_file_hashes.add(file_hash)
-            cached_checks = files_cache[file_hash]
             entry = TargetEntry(
                 target=FileTarget(type="file", file=rel_path),
-                checks=cached_checks["checks"],
+                checks=files_cache[file_hash]["checks"],
             )
             new_targets.append(entry)
             all_entries.append(entry)
 
-        # Symbol-level match
+        # Symbol-level match — read file once, hash from memory
         try:
             source = file_path.read_text()
+            all_lines = source.splitlines()
             symbols = extract_symbols(source)
         except OSError:
             continue
 
         for symbol in symbols:
             try:
-                symbol_hash = compute_symbol_hash(file_path, symbol["lines"])
+                symbol_hash = _hash_symbol_from_lines(all_lines, symbol["lines"])
             except (IndexError, ValueError):
                 continue
 
             if symbol_hash in symbols_cache:
                 matched_symbol_hashes.add(symbol_hash)
                 symbols_reviewed += 1
-                cached_checks = symbols_cache[symbol_hash]
                 target = SymbolTarget(
                     type="symbol",
                     file=rel_path,
                     symbol=symbol["name"],
                     lines=(symbol["lines"][0], symbol["lines"][1]),
                 )
-                entry = TargetEntry(target=target, checks=cached_checks["checks"])
+                entry = TargetEntry(target=target, checks=symbols_cache[symbol_hash]["checks"])
                 all_entries.append(entry)
                 if has_non_pass(entry["checks"]):
                     new_targets.append(entry)
 
-    new_targets.sort(key=target_sort_key)
-    summary = _count_checks(all_entries, symbols_reviewed)
+    return _RescanResult(
+        new_targets, all_entries, symbols_reviewed,
+        matched_file_hashes, matched_symbol_hashes, files_scanned,
+    )
 
-    # Prune orphaned hashes — only keep entries that matched current files
-    live_files = {h: v for h, v in files_cache.items() if h in matched_file_hashes}
-    live_symbols = {h: v for h, v in symbols_cache.items() if h in matched_symbol_hashes}
+
+def _prune_orphaned_hashes(
+    cache: dict[str, CacheChecks],
+    matched: set[str],
+) -> dict[str, CacheChecks]:
+    """Keep only cache entries whose hashes matched current files."""
+    return {h: v for h, v in cache.items() if h in matched}
+
+
+def _rescan_files(
+    data: CacheFile,
+    cache_path: Path,
+    root: Path,
+) -> RefreshStats:
+    """Full rescan and cache rebuild — matches file/symbol hashes and reconstructs targets."""
+    files_cache = data.get("files", {})
+    symbols_cache = data.get("symbols", {})
+    targets_before = len(data.get("targets", []))
+
+    changeset_targets = [
+        entry for entry in data.get("targets", []) if entry["target"]["type"] == "changeset"
+    ]
+
+    scan = _scan_files_against_cache(root, changeset_targets, files_cache, symbols_cache)
+    scan.new_targets.sort(key=target_sort_key)
+    summary = _compute_summary(scan.all_entries, scan.symbols_reviewed)
 
     refreshed = CacheFile(
         version="3",
         timestamp=datetime.now(UTC).isoformat(),
         checklist_version=data.get("checklist_version", "unknown"),
         summary=summary,
-        targets=new_targets,
-        files=live_files,
-        symbols=live_symbols,
+        targets=scan.new_targets,
+        files=_prune_orphaned_hashes(files_cache, scan.matched_file_hashes),
+        symbols=_prune_orphaned_hashes(symbols_cache, scan.matched_symbol_hashes),
     )
-    cache_path.write_text(json.dumps(refreshed, indent=2, ensure_ascii=False) + "\n")
+    _write_cache_file(refreshed, cache_path)
 
     return RefreshStats(
-        files_scanned=files_scanned,
-        file_hit=len(matched_file_hashes),
-        symbol_hit=len(matched_symbol_hashes),
+        files_scanned=scan.files_scanned,
+        file_hit=len(scan.matched_file_hashes),
+        symbol_hit=len(scan.matched_symbol_hashes),
         targets_before=targets_before,
-        targets_after=len(new_targets),
-        orphaned_file_hashes=len(files_cache) - len(matched_file_hashes),
-        orphaned_symbol_hashes=len(symbols_cache) - len(matched_symbol_hashes),
+        targets_after=len(scan.new_targets),
+        orphaned_file_hashes=len(files_cache) - len(scan.matched_file_hashes),
+        orphaned_symbol_hashes=len(symbols_cache) - len(scan.matched_symbol_hashes),
         fresh=False,
     )

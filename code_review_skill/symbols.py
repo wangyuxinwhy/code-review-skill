@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import ast
+import re
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from code_review_skill.types import DiscoverOutput, SymbolDef
+from code_review_skill.types import DiscoverOutput, LineRange, SymbolDef
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
 
 
 def extract_symbols(source: str) -> list[SymbolDef]:
@@ -21,16 +22,13 @@ def extract_symbols(source: str) -> list[SymbolDef]:
         tree = ast.parse(source)
     except SyntaxError:
         return []
-    symbols: list[SymbolDef] = []
-    _visit_symbols(tree, symbols, prefix="")
-    return symbols
+    return list(_visit_symbols(tree, prefix=""))
 
 
 def _visit_symbols(
     node: ast.AST,
-    symbols: list[SymbolDef],
     prefix: str,
-) -> None:
+) -> Iterator[SymbolDef]:
     for child in ast.iter_child_nodes(node):
         match child:
             case ast.FunctionDef() | ast.AsyncFunctionDef():
@@ -40,17 +38,18 @@ def _visit_symbols(
             case _:
                 continue
         qualified = f"{prefix}.{child.name}" if prefix else child.name
-        symbols.append(
-            SymbolDef(
-                name=qualified,
-                type=symbol_type,
-                lines=(child.lineno, child.end_lineno or child.lineno),
-            )
+        yield SymbolDef(
+            name=qualified,
+            type=symbol_type,
+            lines=(child.lineno, child.end_lineno or child.lineno),
         )
-        _visit_symbols(child, symbols, qualified)
+        yield from _visit_symbols(child, qualified)
 
 
-def _get_diff_hunks(file_path: str, diff_range: str) -> list[tuple[int, int]]:
+_HUNK_RE = re.compile(r"^@@\s.*?\+(\d+)(?:,(\d+))?\s@@")
+
+
+def _get_diff_hunks(file_path: str, diff_range: str) -> list[LineRange]:
     """Parse git diff hunks into (start, end) line ranges (1-indexed, inclusive)."""
     try:
         diff_output = subprocess.run(
@@ -62,28 +61,30 @@ def _get_diff_hunks(file_path: str, diff_range: str) -> list[tuple[int, int]]:
     except OSError:
         return []
 
-    hunks: list[tuple[int, int]] = []
+    hunks: list[LineRange] = []
     for line in diff_output.stdout.splitlines():
-        if not line.startswith("@@"):
+        m = _HUNK_RE.match(line)
+        if not m:
             continue
-        # Parse @@ -old,count +new,count @@ format
-        parts = line.split("+", 1)
-        if len(parts) < 2:
-            continue
-        new_range_parts = parts[1].split("@@")[0].strip().split(",")
-        start = int(new_range_parts[0])
-        count = int(new_range_parts[1]) if len(new_range_parts) > 1 else 1
+        start = int(m.group(1))
+        count = int(m.group(2)) if m.group(2) else 1
         if count > 0:
             hunks.append((start, start + count - 1))
     return hunks
 
 
-def _ranges_overlap(a: tuple[int, int], b: tuple[int, int]) -> bool:
-    return a[0] <= b[1] and b[0] <= a[1]
+def _ranges_overlap(range_a: LineRange, range_b: LineRange) -> bool:
+    return range_a[0] <= range_b[1] and range_b[0] <= range_a[1]
 
 
-def _filter_symbols_by_diff(symbols: Iterable[SymbolDef], diff_hunks: Sequence[tuple[int, int]]) -> list[SymbolDef]:
-    return [symbol for symbol in symbols if any(_ranges_overlap(symbol["lines"], hunk) for hunk in diff_hunks)]
+def _filter_symbols_by_diff(
+    symbols: Iterable[SymbolDef],
+    diff_hunks: Sequence[LineRange],
+) -> list[SymbolDef]:
+    return [
+        symbol for symbol in symbols
+        if any(_ranges_overlap(symbol["lines"], hunk) for hunk in diff_hunks)
+    ]
 
 
 def extract_symbols_batch(

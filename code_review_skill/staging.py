@@ -26,18 +26,18 @@ from code_review_skill.types import (
 LOCAL_CHECKLIST = Path(".code-review-checklist.yaml")
 
 
-def resolve_checklist(explicit: Path | None = None) -> Path:
+def resolve_checklist(override_path: Path | None = None) -> Path:
     """Resolve checklist path with fallback chain:
 
     1. Explicit path (--checklist argument) — must exist if provided
     2. .code-review-checklist.yaml (project-local customization)
     3. Built-in default (shipped with the package)
     """
-    if explicit is not None:
-        if not explicit.exists():
-            msg = f"Checklist not found: {explicit}"
+    if override_path is not None:
+        if not override_path.exists():
+            msg = f"Checklist not found: {override_path}"
             raise FileNotFoundError(msg)
-        return explicit
+        return override_path
 
     if LOCAL_CHECKLIST.exists():
         return LOCAL_CHECKLIST
@@ -50,7 +50,7 @@ def resolve_checklist(explicit: Path | None = None) -> Path:
 
 def load_checklist(checklist_path: Path) -> Checklist:
     """Load checklist YAML and build a lookup dict by item id."""
-    data = yaml.safe_load(checklist_path.read_text())
+    data: dict[str, Any] = yaml.safe_load(checklist_path.read_text())
     version = str(data.get("version", "unknown"))
     items: dict[str, ChecklistItem] = {}
     for item in data.get("items", []):
@@ -68,17 +68,11 @@ def load_checklist(checklist_path: Path) -> Checklist:
 
 def load_staging_files(staging_dir: Path) -> list[StagingEntry]:
     files = sorted(path for path in staging_dir.glob("*.json") if not path.name.startswith("_"))
-    return [json.loads(file_path.read_text()) for file_path in files]
+    return [cast("StagingEntry", json.loads(file_path.read_text())) for file_path in files]
 
 
-def write_staging_entry(staging_dir: Path, entry: StagingEntry) -> Path:
-    """Write a staging entry to the staging directory, return the written path.
-
-    Filename is derived from the entry's stage and target:
-      changeset → changeset.json
-      file      → file-{sanitized}.json
-      symbol    → symbol-{sanitized}-{name}.json
-    """
+def _derive_staging_filename(entry: StagingEntry) -> str:
+    """Derive the staging filename from entry stage and target."""
     stage = entry.get("stage", "unknown")
 
     def sanitize(s: str) -> str:
@@ -86,19 +80,23 @@ def write_staging_entry(staging_dir: Path, entry: StagingEntry) -> Path:
 
     match stage:
         case "changeset":
-            filename = "changeset.json"
+            return "changeset.json"
         case "file":
             target = entry.get("target", {})
             file_str = target.get("file", "unknown")
-            filename = f"file-{sanitize(file_str)}.json"
+            return f"file-{sanitize(file_str)}.json"
         case "symbol":
             target = entry.get("target", {})
             file_str = target.get("file", "unknown")
             symbol_name = target.get("symbol", "unknown")
-            filename = f"symbol-{sanitize(file_str)}-{sanitize(symbol_name)}.json"
+            return f"symbol-{sanitize(file_str)}-{sanitize(symbol_name)}.json"
         case _:
-            filename = f"{stage}.json"
+            return f"{stage}.json"
 
+
+def write_staging_entry(staging_dir: Path, entry: StagingEntry) -> Path:
+    """Write a staging entry to the staging directory, return the written path."""
+    filename = _derive_staging_filename(entry)
     staging_dir.mkdir(parents=True, exist_ok=True)
     path = staging_dir / filename
     path.write_text(json.dumps(entry, indent=2, ensure_ascii=False) + "\n")
@@ -112,6 +110,7 @@ def enrich_check(check: StagingCheck | CheckResult, checklist_items: Mapping[str
     """Fill in category/level/summary/status from checklist when missing."""
     check_id = check.get("id", "")
     item = checklist_items.get(check_id)
+    # Copy to plain dict to add fields; cast back to CheckResult at the end.
     enriched = dict(check)
     if item:
         enriched.setdefault("category", item["category"])
@@ -148,13 +147,11 @@ def target_sort_key(entry: TargetEntry) -> tuple[int, str, int]:
 
 def has_non_pass(checks: Iterable[CheckResult]) -> bool:
     """True if any check is not a clean pass (failed, blocked, or missing pass field)."""
-    for check in checks:
-        if "pass" in check:
-            if check["pass"] is not True:
-                return True
-        elif check.get("status") in ("failed", "blocked"):
-            return True
-    return False
+    return any(
+        (check["pass"] is not True) if "pass" in check
+        else check.get("status") in ("failed", "blocked")
+        for check in checks
+    )
 
 
 def _extract_symbol_entries(staging: StagingEntry) -> list[StagingSymbolEntry]:
@@ -163,15 +160,14 @@ def _extract_symbol_entries(staging: StagingEntry) -> list[StagingSymbolEntry]:
     Grouped (legacy): { "stage": "symbol", "targets": [{ "target": ..., "checks": ... }, ...] }
     Per-symbol:       { "stage": "symbol", "target": ..., "checks": [...] }
     """
-    match staging:
-        case {"targets": targets}:
-            return targets
-        case {"symbols": symbols}:
-            return symbols
-        case {"target": target}:
-            return [{"target": target, "checks": staging.get("checks", [])}]
-        case _:
-            return []
+    if "targets" in staging:
+        return staging["targets"]
+    elif "symbols" in staging:
+        return staging["symbols"]
+    elif "target" in staging:
+        return [{"target": staging["target"], "checks": staging.get("checks", [])}]
+    else:
+        return []
 
 
 def _normalize_symbol_target(entry: StagingSymbolEntry, fallback_file: str) -> SymbolTarget:
@@ -182,6 +178,7 @@ def _normalize_symbol_target(entry: StagingSymbolEntry, fallback_file: str) -> S
     return SymbolTarget(
         type="symbol",
         file=fallback_file,
+        # Fallback chain: 'symbol' (canonical) -> 'name' (legacy flat format) -> empty
         symbol=entry.get("symbol", entry.get("name", "")),
         lines=(lines[0], lines[1]),
     )
@@ -190,7 +187,9 @@ def _normalize_symbol_target(entry: StagingSymbolEntry, fallback_file: str) -> S
 # --- Annotation conversion ---
 
 
-def _convert_annotations_to_offsets(checks: Iterable[Mapping[str, Any]], base_line: int) -> list[dict[str, Any]]:
+def _convert_annotations_to_offsets(
+    checks: Iterable[StagingCheck | CheckResult], base_line: int,
+) -> list[dict[str, Any]]:
     """Convert annotation absolute line numbers to offsets relative to base_line.
 
     For file targets: base_line = 1 (offset becomes 0-indexed from file start).
@@ -208,7 +207,9 @@ def _convert_annotations_to_offsets(checks: Iterable[Mapping[str, Any]], base_li
     return result
 
 
-def _convert_offsets_to_lines(checks: Iterable[Mapping[str, Any]], base_line: int) -> list[dict[str, Any]]:
+def _convert_offsets_to_lines(
+    checks: Iterable[StagingCheck | CheckResult], base_line: int,
+) -> list[dict[str, Any]]:
     """Restore cached offset-based annotations to absolute line numbers for staging output."""
     result: list[dict[str, Any]] = []
     for check in checks:
@@ -225,15 +226,15 @@ def _convert_offsets_to_lines(checks: Iterable[Mapping[str, Any]], base_line: in
 # --- Merge logic ---
 
 
-def merge_staging(
+def _enrich_and_collect_entries(
     staging_files: Iterable[StagingEntry],
-    checklist_items: Mapping[str, ChecklistItem] | None = None,
-) -> MergeResult:
-    """Merge staging files into sorted targets, enriching checks from checklist.
+    checklist_lookup: Mapping[str, ChecklistItem],
+) -> tuple[list[TargetEntry], list[TargetEntry], int]:
+    """Dispatch by stage, enrich checks, return (all_entries, filtered_targets, symbols_reviewed).
 
-    All-pass symbols are counted but excluded from the returned targets.
+    All-pass symbols are included in all_entries (for summary counts)
+    but excluded from filtered_targets.
     """
-    checklist_lookup = checklist_items or {}
     all_entries: list[TargetEntry] = []
     filtered_targets: list[TargetEntry] = []
     symbols_reviewed = 0
@@ -270,12 +271,28 @@ def merge_staging(
             case _:
                 pass
 
+    return all_entries, filtered_targets, symbols_reviewed
+
+
+def merge_staging(
+    staging_files: Iterable[StagingEntry],
+    checklist_items: Mapping[str, ChecklistItem] | None = None,
+) -> MergeResult:
+    """Merge staging files into sorted targets, enriching checks from checklist.
+
+    All-pass symbols are counted but excluded from the returned targets.
+    """
+    checklist_lookup = checklist_items or {}
+    all_entries, filtered_targets, symbols_reviewed = _enrich_and_collect_entries(
+        staging_files, checklist_lookup,
+    )
     filtered_targets.sort(key=target_sort_key)
-    summary = _count_checks(all_entries, symbols_reviewed)
+    summary = _compute_summary(all_entries, symbols_reviewed)
     return MergeResult(filtered_targets, symbols_reviewed, summary)
 
 
-def _count_checks(entries: Iterable[TargetEntry], symbols_reviewed: int) -> ReviewSummary:
+def _compute_summary(entries: Iterable[TargetEntry], symbols_reviewed: int) -> ReviewSummary:
+    """Count checks by status/level to build summary statistics."""
     blocking_failures = 0
     advisory_failures = 0
     passed = 0

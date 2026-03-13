@@ -18,7 +18,7 @@ def _format_summary(summary: ReviewSummary) -> str:
     return f"Findings: {', '.join(parts)} | Symbols: {summary['symbols_reviewed']} reviewed"
 
 
-def _read_source_lines(file_path: str) -> list[str] | None:
+def _read_source_lines(file_path: str | Path) -> list[str] | None:
     try:
         return Path(file_path).read_text().splitlines()
     except OSError:
@@ -35,6 +35,7 @@ def _annotate_source(
 
     annotations maps absolute line number -> message.
     """
+    start = max(start, 1)
     out: list[str] = []
     width = len(str(end))
     for lineno in range(start, end + 1):
