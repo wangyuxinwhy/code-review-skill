@@ -163,15 +163,14 @@ def _extract_symbol_entries(staging: StagingEntry) -> list[StagingSymbolEntry]:
     Grouped (legacy): { "stage": "symbol", "targets": [{ "target": ..., "checks": ... }, ...] }
     Per-symbol:       { "stage": "symbol", "target": ..., "checks": [...] }
     """
-    match staging:
-        case {"targets": targets}:
-            return targets
-        case {"symbols": symbols}:
-            return symbols
-        case {"target": target}:
-            return [{"target": target, "checks": staging.get("checks", [])}]
-        case _:
-            return []
+    if "targets" in staging:
+        return staging["targets"]
+    elif "symbols" in staging:
+        return staging["symbols"]
+    elif "target" in staging:
+        return [{"target": staging["target"], "checks": staging.get("checks", [])}]
+    else:
+        return []
 
 
 def _normalize_symbol_target(entry: StagingSymbolEntry, fallback_file: str) -> SymbolTarget:
