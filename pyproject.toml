@@ -7,7 +7,22 @@ name = "code-review-skill"
 version = "0.1.0"
 description = "Code review pipeline for Claude Code — review code against a configurable checklist"
 requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "wangyuxinwhy" }]
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 dependencies = ["pyyaml>=6"]
+
+[project.urls]
+Homepage = "https://github.com/wangyuxinwhy/code-review-skill"
+Repository = "https://github.com/wangyuxinwhy/code-review-skill"
+Issues = "https://github.com/wangyuxinwhy/code-review-skill/issues"
 
 [project.scripts]
 code-review-skill = "code_review_skill.cli:main"
