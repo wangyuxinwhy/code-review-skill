@@ -23,6 +23,7 @@ from code_review_skill.symbols import (
     extract_symbols,
     extract_symbols_batch,
 )
+from code_review_skill.types import ReviewPlan
 
 DESCRIPTION = """\
 Code review pipeline for Claude Code.
@@ -340,9 +341,9 @@ def main() -> None:
             discovery = discover(args.range)
             print(json.dumps(discovery, indent=2))
         case "stage":
-            raw = sys.stdin.read()
+            stdin_text = sys.stdin.read()
             try:
-                entry = json.loads(raw)
+                entry = json.loads(stdin_text)
             except json.JSONDecodeError as exc:
                 print(f"Invalid JSON on stdin: {exc}", file=sys.stderr)
                 sys.exit(1)
@@ -358,16 +359,16 @@ def main() -> None:
                 staging_dir=args.staging,
                 diff_symbols=discovery["symbols"],
             )
-            plan = {
-                "diff_range": args.range,
-                "changed_files": discovery["files"],
-                "diff_symbols": discovery["symbols"],
-                "review_files": check_result["review_files"],
-                "cached_files": check_result["cached_files"],
-                "review_symbols": check_result["review_symbols"],
-                "cached_symbols": check_result["cached_symbols"],
-                "stats": check_result["stats"],
-            }
+            plan = ReviewPlan(
+                diff_range=args.range,
+                changed_files=discovery["files"],
+                diff_symbols=discovery["symbols"],
+                review_files=check_result["review_files"],
+                cached_files=check_result["cached_files"],
+                review_symbols=check_result["review_symbols"],
+                cached_symbols=check_result["cached_symbols"],
+                stats=check_result["stats"],
+            )
             print(json.dumps(plan, indent=2))
         case "init":
             if args.init_action == "check":
@@ -386,6 +387,7 @@ def main() -> None:
 
 
 def _build_init_instructions(default_checklist: str) -> str:
+    item_count = _count_items(default_checklist)
     return f"""\
 CODE REVIEW SKILL — PROJECT INITIALIZATION CONTEXT
 
@@ -465,7 +467,7 @@ entirely — Gate 0 will be skipped.
 CHECKLIST CUSTOMIZATION
 ══════════════════════════════════════════════════════════════════
 
-The default checklist contains {_count_items(default_checklist)} items oriented toward
+The default checklist contains {item_count} items oriented toward
 Python projects. Different project types benefit from different checks.
 
 Consider the project's language, framework, and domain:
@@ -531,7 +533,8 @@ class _InitCheckResult(NamedTuple):
     detail: str
 
 
-def _cmd_init_check() -> None:
+def _run_init_checks() -> list[_InitCheckResult]:
+    """Validate project setup, returning a list of check results."""
     checklist_path = Path(".code-review-checklist.yaml")
     staging_dir = Path(".code-review/staging")
     gitignore = Path(".gitignore")
@@ -553,12 +556,12 @@ def _cmd_init_check() -> None:
             ))
         except Exception as exc:
             checks.append(_InitCheckResult("checklist file", False, f"parse error: {exc}"))
-            checks.append(_InitCheckResult("checklist items", False, "skipped"))
-            checks.append(_InitCheckResult("pre_check configured", False, "skipped"))
+            for name in ("checklist items", "pre_check configured"):
+                checks.append(_InitCheckResult(name, False, "skipped"))
     else:
         checks.append(_InitCheckResult("checklist file", False, "not found"))
-        checks.append(_InitCheckResult("checklist items", False, "skipped"))
-        checks.append(_InitCheckResult("pre_check configured", False, "skipped"))
+        for name in ("checklist items", "pre_check configured"):
+            checks.append(_InitCheckResult(name, False, "skipped"))
 
     # Check staging directory
     checks.append(_InitCheckResult("staging directory", staging_dir.is_dir(), str(staging_dir)))
@@ -571,12 +574,16 @@ def _cmd_init_check() -> None:
     else:
         checks.append(_InitCheckResult(".gitignore entry", False, ".gitignore not found"))
 
-    # Output results
-    all_passed = True
+    return checks
+
+
+def _cmd_init_check() -> None:
+    """Run init checks, print results, exit(1) on failure."""
+    checks = _run_init_checks()
+    all_passed = all(result.passed for result in checks)
+
     for result in checks:
         status = "PASS" if result.passed else "FAIL"
-        if not result.passed:
-            all_passed = False
         print(f"  [{status}] {result.name}: {result.detail}")
 
     if all_passed:

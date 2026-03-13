@@ -16,6 +16,9 @@ TARGET_TYPE_ORDER: dict[str, int] = {
     "symbol": 2,
 }
 
+LineRange = tuple[int, int]
+"""1-indexed inclusive (start, end) line range."""
+
 
 # --- Target descriptors ---
 
@@ -33,7 +36,7 @@ class SymbolTarget(TypedDict):
     type: Literal["symbol"]
     file: str
     symbol: str
-    lines: tuple[int, int]
+    lines: LineRange
 
 
 TargetDescriptor = ChangesetTarget | FileTarget | SymbolTarget
@@ -45,7 +48,7 @@ TargetDescriptor = ChangesetTarget | FileTarget | SymbolTarget
 class SymbolDef(TypedDict):
     name: str
     type: Literal["function", "method", "class"]
-    lines: tuple[int, int]
+    lines: LineRange
 
 
 class DiscoverOutput(TypedDict):
@@ -57,6 +60,12 @@ class DiscoverOutput(TypedDict):
 
 
 class Annotation(TypedDict):
+    """Check annotation stored in cache.
+
+    offset is relative to the target's base line (1 for file targets,
+    symbol start line for symbol targets).
+    """
+
     offset: int
     message: str
 
@@ -96,18 +105,24 @@ StagingCheck = TypedDict(
 
 
 class StagingSymbolEntry(TypedDict, total=False):
+    """A single symbol's staging data. Fields vary by subagent format.
+
+    Canonical format uses 'target' with nested SymbolTarget fields.
+    Legacy flat format uses 'symbol' (or 'name' as fallback) plus 'file'/'lines'.
+    """
+
     target: TargetDescriptor
     checks: list[StagingCheck]
-    symbol: str
-    name: str
+    symbol: str  # canonical: qualified symbol name
+    name: str  # legacy fallback for symbol name
     file: str
-    lines: tuple[int, int]
+    lines: LineRange
 
 
 class StagingEntry(TypedDict, total=False):
     """A single staging file's content. Fields vary by stage type."""
 
-    stage: str
+    stage: Literal["changeset", "file", "symbol"]
     target: TargetDescriptor
     checks: list[StagingCheck]
     file: str
@@ -121,6 +136,12 @@ class TargetEntry(TypedDict):
 
 
 class ReviewSummary(TypedDict):
+    """Aggregate counts across all checks in a review.
+
+    blocking_failures: checks at level='blocking' that failed.
+    blocked: checks with indeterminate (None) pass status.
+    """
+
     blocking_failures: int
     advisory_failures: int
     passed: int
@@ -132,6 +153,17 @@ class MergeResult(NamedTuple):
     targets: list[TargetEntry]
     symbols_reviewed: int
     summary: ReviewSummary
+
+
+class ReviewPlan(TypedDict):
+    diff_range: str
+    changed_files: list[str]
+    diff_symbols: dict[str, list[SymbolDef]]
+    review_files: list[str]
+    cached_files: list[str]
+    review_symbols: dict[str, list[str]]
+    cached_symbols: dict[str, list[str]]
+    stats: "CacheStats"
 
 
 class ChecklistItem(TypedDict):

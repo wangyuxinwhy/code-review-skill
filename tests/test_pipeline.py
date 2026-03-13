@@ -20,7 +20,7 @@ from code_review_skill.cache import (
 from code_review_skill.staging import (
     _convert_annotations_to_offsets,
     _convert_offsets_to_lines,
-    _count_checks,
+    _compute_summary,
     _normalize_symbol_target,
     enrich_check,
     has_non_pass,
@@ -1234,7 +1234,7 @@ class TestCountChecks:
                 ]
             }
         ]
-        summary = _count_checks(entries, symbols_reviewed=1)
+        summary = _compute_summary(entries, symbols_reviewed=1)
 
         assert summary == {
             "blocking_failures": 1,
@@ -1245,7 +1245,7 @@ class TestCountChecks:
         }
 
     def test_empty_entries(self) -> None:
-        summary = _count_checks([], symbols_reviewed=0)
+        summary = _compute_summary([], symbols_reviewed=0)
 
         assert summary["passed"] == 0
         assert summary["blocking_failures"] == 0
@@ -1261,7 +1261,7 @@ class TestCountChecks:
                 ]
             }
         ]
-        summary = _count_checks(entries, symbols_reviewed=1)
+        summary = _compute_summary(entries, symbols_reviewed=1)
 
         assert summary == {
             "blocking_failures": 1,
