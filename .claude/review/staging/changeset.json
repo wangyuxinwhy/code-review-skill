@@ -1,8 +1,0 @@
-{
-  "stage": "changeset",
-  "target": { "type": "changeset" },
-  "checks": [
-    { "id": "dependency-direction", "pass": true },
-    { "id": "naming-consistency", "pass": true }
-  ]
-}

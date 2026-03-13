@@ -1,3 +1,4 @@
 code_review_skill.egg-info/
 __pycache__/
 .code-review/
+.claude/
