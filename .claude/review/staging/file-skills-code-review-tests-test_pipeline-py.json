@@ -1,8 +1,0 @@
-{
-  "stage": "file",
-  "target": { "type": "file", "file": "skills/code-review/tests/test_pipeline.py" },
-  "checks": [
-    { "id": "module-cohesion", "pass": true },
-    { "id": "file-naming", "pass": true }
-  ]
-}
