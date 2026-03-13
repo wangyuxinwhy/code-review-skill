@@ -421,6 +421,9 @@ def _verify_targets(data: CacheFile, root: Path) -> bool:
                 except (IndexError, ValueError):
                     return False
 
+            case {"type": "changeset"}:
+                continue
+
             case _:
                 return False
 
