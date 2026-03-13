@@ -17,6 +17,7 @@ from code_review_skill.cache import (
     compute_symbol_hash,
     load_cache,
 )
+from code_review_skill.checklist import load_checklist, resolve_checklist
 from code_review_skill.staging import (
     _convert_annotations_to_offsets,
     _convert_offsets_to_lines,
@@ -24,10 +25,8 @@ from code_review_skill.staging import (
     _normalize_symbol_target,
     enrich_check,
     has_non_pass,
-    load_checklist,
     load_staging_files,
     merge_staging,
-    resolve_checklist,
     sort_checks,
     target_sort_key,
     write_staging_entry,

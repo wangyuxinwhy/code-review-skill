@@ -15,7 +15,8 @@ import yaml
 
 from code_review_skill.cache import build, check, refresh
 from code_review_skill.render import show
-from code_review_skill.staging import resolve_checklist, write_staging_entry
+from code_review_skill.checklist import resolve_checklist
+from code_review_skill.staging import write_staging_entry
 from code_review_skill.symbols import (
     _filter_symbols_by_diff,
     _get_diff_hunks,
@@ -195,6 +196,7 @@ def main() -> None:
     build_parser.add_argument("--staging", type=Path, default=DEFAULT_STAGING)
     build_parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
     build_parser.add_argument("--checklist", type=Path, default=None, help="Override checklist path")
+    build_parser.add_argument("--merge", action="store_true", help="Merge new staging into existing cache")
 
     # show subcommand
     show_parser = subparsers.add_parser("show", help="Show findings from cache.json")
@@ -297,6 +299,7 @@ def main() -> None:
                     staging_dir=args.staging,
                     cache_path=args.cache,
                     checklist_path=checklist_path,
+                    merge=args.merge,
                 )
             except ValueError as exc:
                 print(str(exc), file=sys.stderr)

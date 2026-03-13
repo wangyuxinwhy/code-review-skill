@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import ast
+import logging
 import re
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from code_review_skill.types import DiscoverOutput, LineRange, SymbolDef
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
@@ -21,6 +24,7 @@ def extract_symbols(source: str) -> list[SymbolDef]:
     try:
         tree = ast.parse(source)
     except SyntaxError:
+        logger.debug("Skipping unparseable source (SyntaxError)")
         return []
     return list(_visit_symbols(tree, prefix=""))
 
@@ -59,6 +63,7 @@ def _get_diff_hunks(file_path: str, diff_range: str) -> list[LineRange]:
             check=False,
         )
     except OSError:
+        logger.debug("Failed to run git diff for %s", file_path)
         return []
 
     hunks: list[LineRange] = []
@@ -99,10 +104,12 @@ def extract_symbols_batch(
     for file_str in files:
         file_path = Path(file_str)
         if not file_path.exists():
+            logger.debug("Skipping missing file: %s", file_str)
             continue
         try:
             source = file_path.read_text()
         except OSError:
+            logger.debug("Skipping unreadable file: %s", file_str)
             continue
         symbols = extract_symbols(source)
         if diff_range:
@@ -123,6 +130,7 @@ def discover_changed_files(diff_range: str) -> list[str]:
             check=False,
         )
     except OSError:
+        logger.debug("Failed to run git diff --name-only for range %s", diff_range)
         return []
     return [f for f in proc.stdout.strip().splitlines() if f.endswith(".py")]
 

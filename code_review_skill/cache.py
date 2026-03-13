@@ -2,11 +2,15 @@
 
 import hashlib
 import json
+import logging
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
+logger = logging.getLogger(__name__)
+
+from code_review_skill.checklist import load_checklist
 from code_review_skill.staging import (
     _compute_summary,
     _convert_annotations_to_offsets,
@@ -14,7 +18,6 @@ from code_review_skill.staging import (
     _extract_symbol_entries,
     _normalize_symbol_target,
     has_non_pass,
-    load_checklist,
     load_staging_files,
     merge_staging,
     target_sort_key,
@@ -67,7 +70,8 @@ def load_cache(cache_path: Path, checklist_path: Path) -> CacheFile | None:
         return None
     try:
         data: dict[str, Any] = json.loads(cache_path.read_text())
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.debug("Failed to read cache %s: %s", cache_path, exc)
         return None
     if data.get("version") != "3" or "files" not in data:
         return None
@@ -151,6 +155,7 @@ def _check_symbol_cache(
             all_lines = source.splitlines()
             symbols = extract_symbols(source)
         except OSError:
+            logger.debug("Skipping unreadable file in symbol cache check: %s", file_str)
             continue
 
         # When diff_symbols is provided, only consider symbols touched by the diff
@@ -164,6 +169,7 @@ def _check_symbol_cache(
             try:
                 symbol_hash = _hash_symbol_from_lines(all_lines, symbol["lines"])
             except (IndexError, ValueError):
+                logger.debug("Bad line range for symbol %s in %s: %s", symbol["name"], file_str, symbol["lines"])
                 file_review.append(symbol["name"])
                 miss += 1
                 continue
@@ -309,11 +315,13 @@ def _build_symbols_cache(staging_files: Iterable[StagingEntry]) -> dict[str, Cac
 
             file_path = Path(file_str)
             if not file_path.exists():
+                logger.debug("Skipping missing file in symbol cache build: %s", file_str)
                 continue
 
             try:
                 symbol_hash = compute_symbol_hash(file_path, lines)
             except (IndexError, ValueError):
+                logger.debug("Bad line range in symbol cache build: %s lines=%s", file_str, lines)
                 continue
 
             offset_checks = _convert_annotations_to_offsets(symbol_entry.get("checks", []), base_line=lines[0])
@@ -348,9 +356,16 @@ def build(
     staging_dir: Path,
     cache_path: Path,
     checklist_path: Path,
+    *,
+    merge: bool = False,
 ) -> CacheFile:
     """Load staging files, enrich checks from checklist, assemble hash-keyed
-    cache sections, and write the combined cache.json v3 to disk."""
+    cache sections, and write the combined cache.json v3 to disk.
+
+    When merge=True, new staging results are merged into the existing cache:
+    existing file/symbol hashes are preserved, and only new hashes from the
+    current staging are added or updated.
+    """
     staging_files = load_staging_files(staging_dir)
     if not staging_files:
         raise ValueError("No staging files found")
@@ -362,6 +377,15 @@ def build(
 
     files_cache = _build_files_cache(staging_files)
     symbols_cache = _build_symbols_cache(staging_files)
+
+    # Merge with existing cache if requested
+    if merge:
+        existing = load_cache(cache_path, checklist_path)
+        if existing:
+            merged_files = {**existing.get("files", {}), **files_cache}
+            merged_symbols = {**existing.get("symbols", {}), **symbols_cache}
+            files_cache = merged_files
+            symbols_cache = merged_symbols
 
     cache_data = CacheFile(
         version="3",
@@ -419,7 +443,11 @@ def _verify_targets(data: CacheFile, root: Path) -> bool:
                     if compute_symbol_hash(file_path, (start, end)) not in symbols_cache:
                         return False
                 except (IndexError, ValueError):
+                    logger.debug("Stale symbol target: bad line range %s:%s-%s", file_str, start, end)
                     return False
+
+            case {"type": "changeset"}:
+                continue  # no hash to verify
 
             case _:
                 return False
@@ -509,12 +537,14 @@ def _scan_files_against_cache(
             all_lines = source.splitlines()
             symbols = extract_symbols(source)
         except OSError:
+            logger.debug("Skipping unreadable file in rescan: %s", file_path)
             continue
 
         for symbol in symbols:
             try:
                 symbol_hash = _hash_symbol_from_lines(all_lines, symbol["lines"])
             except (IndexError, ValueError):
+                logger.debug("Bad line range in rescan: %s %s", file_path, symbol["lines"])
                 continue
 
             if symbol_hash in symbols_cache:
