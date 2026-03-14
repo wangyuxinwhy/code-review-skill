@@ -1,6 +1,6 @@
-.PHONY: check lint typecheck test
+.PHONY: check lint typecheck complexity test
 
-check: lint typecheck test
+check: lint typecheck complexity test
 
 lint:
 	uv run ruff check src tests
@@ -8,6 +8,9 @@ lint:
 
 typecheck:
 	uv run basedpyright
+
+complexity:
+	uv run complexipy src/
 
 test:
 	uv run pytest
