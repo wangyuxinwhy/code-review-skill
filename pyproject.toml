@@ -23,7 +23,12 @@ Issues = "https://github.com/wangyuxinwhy/code-review-skill/issues"
 code-review-skill = "code_review_skill.cli:main"
 
 [dependency-groups]
-dev = ["ruff>=0.11", "basedpyright>=1.29", "pytest>=8"]
+dev = [
+    "ruff>=0.11",
+    "basedpyright>=1.29",
+    "pytest>=8",
+    "complexipy>=5.2.0",
+]
 
 [tool.ruff]
 target-version = "py312"
@@ -50,13 +55,10 @@ select = [
     "FURB", # refurb
 ]
 ignore = [
-    "PLR0913", # too-many-arguments — some functions legitimately need them
-    "PLR2004", # magic-value-comparison — too noisy for check IDs / constants
-    "PLR0912", # too-many-branches — complex but well-structured functions
-    "PLR0911", # too-many-return-statements — match/case functions need them
-    "PLR0915", # too-many-statements — same
-    "SIM108",  # ternary — not always more readable
-    "UP007",   # X | Y union syntax in older annotations — we use it, but not everywhere
+    "PLR0911", # use cognitive complexity instead
+    "PLR0912", # use cognitive complexity instead
+    "PLR0913", # use cognitive complexity instead
+    "PLR0915", # use cognitive complexity instead
 ]
 
 [tool.ruff.lint.per-file-ignores]
