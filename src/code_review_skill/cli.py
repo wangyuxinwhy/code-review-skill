@@ -167,7 +167,7 @@ DEFAULT_CACHE = Path(".code-review/cache.json")
 DEFAULT_STAGING = Path(".code-review/staging")
 
 
-def main() -> None:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="code-review-skill",
         description=DESCRIPTION,
@@ -261,128 +261,169 @@ def main() -> None:
     checklist_parser = subparsers.add_parser("checklist", help="Print the active checklist")
     checklist_parser.add_argument("--builtin", action="store_true", help="Print the built-in default checklist")
 
+    return parser
+
+
+def _cmd_symbols(args: argparse.Namespace) -> None:
+    if args.files:
+        result = extract_symbols_batch(args.files, diff_range=args.diff)
+        print(json.dumps(result, indent=2))
+    else:
+        file_path = Path(args.file)
+        if not file_path.exists():
+            print(f"File not found: {args.file}", file=sys.stderr)
+            sys.exit(1)
+        source = file_path.read_text()
+        symbols = extract_symbols(source)
+        if args.diff:
+            diff_hunks = get_diff_hunks(args.file, args.diff)
+            symbols = filter_symbols_by_diff(symbols, diff_hunks)
+        print(json.dumps(symbols, indent=2))
+
+
+def _cmd_check(args: argparse.Namespace) -> None:
+    checklist_path = resolve_checklist(args.checklist)
+    diff_symbols = discover(args.diff)["symbols"] if args.diff else None
+    result = check(
+        files=args.files,
+        cache_path=args.cache,
+        checklist_path=checklist_path,
+        staging_dir=args.staging,
+        diff_symbols=diff_symbols,
+    )
+    print(json.dumps(result, indent=2))
+
+
+def _cmd_build(args: argparse.Namespace) -> None:
+    checklist_path = resolve_checklist(args.checklist)
+    try:
+        cache_data = build(
+            staging_dir=args.staging,
+            cache_path=args.cache,
+            checklist_path=checklist_path,
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+    summary = cache_data["summary"]
+    print(f"Build complete: {args.cache}")
+    print(
+        f"  {summary['blocking_failures']} blocking, "
+        f"{summary['advisory_failures']} advisory, "
+        f"{summary['passed']} passed, "
+        f"{summary['blocked']} blocked"
+    )
+    print(f"  Symbols reviewed: {summary['symbols_reviewed']}")
+    print(f"  Cache: {len(cache_data['files'])} file(s), {len(cache_data['symbols'])} symbol(s)")
+
+
+def _cmd_show(args: argparse.Namespace) -> None:
+    try:
+        refresh(cache_path=args.cache, root=Path.cwd())
+        report = show(cache_path=args.cache)
+    except (FileNotFoundError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+    print(report)
+
+
+def _cmd_refresh(args: argparse.Namespace) -> None:
+    try:
+        stats = refresh(cache_path=args.cache, root=args.root.resolve())
+    except (FileNotFoundError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+    if stats["fresh"]:
+        print(f"Cache is fresh: {args.cache}")
+    else:
+        print(f"Refresh complete: {args.cache}")
+        print(f"  Scanned: {stats['files_scanned']} files")
+        print(f"  Matched: {stats['file_hit']} file(s), {stats['symbol_hit']} symbol(s)")
+        print(f"  Targets: {stats['targets_before']} -> {stats['targets_after']}")
+        if stats["orphaned_file_hashes"] or stats["orphaned_symbol_hashes"]:
+            print(
+                f"  Orphaned hashes: {stats['orphaned_file_hashes']} file(s), "
+                f"{stats['orphaned_symbol_hashes']} symbol(s)"
+            )
+
+
+def _cmd_discover(args: argparse.Namespace) -> None:
+    discovery = discover(args.range)
+    print(json.dumps(discovery, indent=2))
+
+
+def _cmd_stage(args: argparse.Namespace) -> None:
+    stdin_text = sys.stdin.read()
+    try:
+        entry = json.loads(stdin_text)
+    except json.JSONDecodeError as exc:
+        print(f"Invalid JSON on stdin: {exc}", file=sys.stderr)
+        sys.exit(1)
+    path = write_staging_entry(args.staging, entry)
+    print(json.dumps({"written": str(path)}))
+
+
+def _cmd_review(args: argparse.Namespace) -> None:
+    checklist_path = resolve_checklist(args.checklist)
+    discovery = discover(args.range)
+    check_result = check(
+        files=discovery["files"],
+        cache_path=args.cache,
+        checklist_path=checklist_path,
+        staging_dir=args.staging,
+        diff_symbols=discovery["symbols"],
+    )
+    plan = ReviewPlan(
+        diff_range=args.range,
+        changed_files=discovery["files"],
+        diff_symbols=discovery["symbols"],
+        review_files=check_result["review_files"],
+        cached_files=check_result["cached_files"],
+        review_symbols=check_result["review_symbols"],
+        cached_symbols=check_result["cached_symbols"],
+        stats=check_result["stats"],
+    )
+    print(json.dumps(plan, indent=2))
+
+
+def _cmd_checklist(args: argparse.Namespace) -> None:
+    if args.builtin:
+        builtin = pkg_files("code_review_skill.data").joinpath("checklist.yaml")
+        print(builtin.read_text())
+    else:
+        checklist_path = resolve_checklist()
+        print(Path(checklist_path).read_text())
+
+
+def main() -> None:
+    parser = _build_parser()
     args = parser.parse_args()
 
     match args.command:
         case "symbols":
-            if args.files:
-                result = extract_symbols_batch(args.files, diff_range=args.diff)
-                print(json.dumps(result, indent=2))
-            else:
-                file_path = Path(args.file)
-                if not file_path.exists():
-                    print(f"File not found: {args.file}", file=sys.stderr)
-                    sys.exit(1)
-                source = file_path.read_text()
-                symbols = extract_symbols(source)
-                if args.diff:
-                    diff_hunks = get_diff_hunks(args.file, args.diff)
-                    symbols = filter_symbols_by_diff(symbols, diff_hunks)
-                print(json.dumps(symbols, indent=2))
+            _cmd_symbols(args)
         case "check":
-            checklist_path = resolve_checklist(args.checklist)
-            diff_symbols = discover(args.diff)["symbols"] if args.diff else None
-            result = check(
-                files=args.files,
-                cache_path=args.cache,
-                checklist_path=checklist_path,
-                staging_dir=args.staging,
-                diff_symbols=diff_symbols,
-            )
-            print(json.dumps(result, indent=2))
+            _cmd_check(args)
         case "build":
-            checklist_path = resolve_checklist(args.checklist)
-            try:
-                cache_data = build(
-                    staging_dir=args.staging,
-                    cache_path=args.cache,
-                    checklist_path=checklist_path,
-                )
-            except ValueError as exc:
-                print(str(exc), file=sys.stderr)
-                sys.exit(1)
-            summary = cache_data["summary"]
-            print(f"Build complete: {args.cache}")
-            print(
-                f"  {summary['blocking_failures']} blocking, "
-                f"{summary['advisory_failures']} advisory, "
-                f"{summary['passed']} passed, "
-                f"{summary['blocked']} blocked"
-            )
-            print(f"  Symbols reviewed: {summary['symbols_reviewed']}")
-            print(f"  Cache: {len(cache_data['files'])} file(s), {len(cache_data['symbols'])} symbol(s)")
+            _cmd_build(args)
         case "show":
-            try:
-                refresh(cache_path=args.cache, root=Path.cwd())
-                report = show(cache_path=args.cache)
-            except (FileNotFoundError, ValueError) as exc:
-                print(str(exc), file=sys.stderr)
-                sys.exit(1)
-            print(report)
+            _cmd_show(args)
         case "refresh":
-            try:
-                stats = refresh(cache_path=args.cache, root=args.root.resolve())
-            except (FileNotFoundError, ValueError) as exc:
-                print(str(exc), file=sys.stderr)
-                sys.exit(1)
-            if stats["fresh"]:
-                print(f"Cache is fresh: {args.cache}")
-            else:
-                print(f"Refresh complete: {args.cache}")
-                print(f"  Scanned: {stats['files_scanned']} files")
-                print(f"  Matched: {stats['file_hit']} file(s), {stats['symbol_hit']} symbol(s)")
-                print(f"  Targets: {stats['targets_before']} -> {stats['targets_after']}")
-                if stats["orphaned_file_hashes"] or stats["orphaned_symbol_hashes"]:
-                    print(
-                        f"  Orphaned hashes: {stats['orphaned_file_hashes']} file(s), "
-                        f"{stats['orphaned_symbol_hashes']} symbol(s)"
-                    )
+            _cmd_refresh(args)
         case "discover":
-            discovery = discover(args.range)
-            print(json.dumps(discovery, indent=2))
+            _cmd_discover(args)
         case "stage":
-            stdin_text = sys.stdin.read()
-            try:
-                entry = json.loads(stdin_text)
-            except json.JSONDecodeError as exc:
-                print(f"Invalid JSON on stdin: {exc}", file=sys.stderr)
-                sys.exit(1)
-            path = write_staging_entry(args.staging, entry)
-            print(json.dumps({"written": str(path)}))
+            _cmd_stage(args)
         case "review":
-            checklist_path = resolve_checklist(args.checklist)
-            discovery = discover(args.range)
-            check_result = check(
-                files=discovery["files"],
-                cache_path=args.cache,
-                checklist_path=checklist_path,
-                staging_dir=args.staging,
-                diff_symbols=discovery["symbols"],
-            )
-            plan = ReviewPlan(
-                diff_range=args.range,
-                changed_files=discovery["files"],
-                diff_symbols=discovery["symbols"],
-                review_files=check_result["review_files"],
-                cached_files=check_result["cached_files"],
-                review_symbols=check_result["review_symbols"],
-                cached_symbols=check_result["cached_symbols"],
-                stats=check_result["stats"],
-            )
-            print(json.dumps(plan, indent=2))
+            _cmd_review(args)
         case "init":
             if args.init_action == "check":
                 _cmd_init_check()
             else:
                 _cmd_init()
         case "checklist":
-            if args.builtin:
-                builtin = pkg_files("code_review_skill.data").joinpath("checklist.yaml")
-                print(builtin.read_text())
-            else:
-                checklist_path = resolve_checklist()
-                print(Path(checklist_path).read_text())
-        case _:  # unreachable (subparsers required=True), but satisfies type checker
+            _cmd_checklist(args)
+        case _:
             pass
 
 
