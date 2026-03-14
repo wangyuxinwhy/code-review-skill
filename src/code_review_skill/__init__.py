@@ -1,3 +1,3 @@
-"""Code review pipeline for Claude Code."""
+"""Code review pipeline for coding agents."""
 
 __version__ = "0.1.0"

@@ -1,7 +1,7 @@
 [project]
 name = "code-review-skill"
 version = "0.1.0"
-description = "Code review pipeline for Claude Code — review code against a configurable checklist"
+description = "Code review pipeline for coding agents — review code against a configurable checklist"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "wangyuxinwhy" }]

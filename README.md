@@ -1,6 +1,6 @@
 # code-review-skill
 
-Incremental, checklist-driven code review pipeline for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+Incremental, checklist-driven code review pipeline for coding agents.
 
 Reviews Python code against a configurable checklist at three scopes — **changeset**, **file**, and **symbol** (function/class) — with content-hash caching so unchanged code is never re-reviewed.
 

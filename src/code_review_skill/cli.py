@@ -26,7 +26,7 @@ from code_review_skill.symbols import (
 from code_review_skill.types import ReviewPlan
 
 DESCRIPTION = """\
-Code review pipeline for Claude Code.
+Code review pipeline for coding agents.
 
 Review code against a configurable checklist with incremental caching,
 AST-based symbol extraction, and annotated source output.
