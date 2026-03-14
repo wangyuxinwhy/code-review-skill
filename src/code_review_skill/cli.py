@@ -17,11 +17,11 @@ from code_review_skill.cache import build, check, refresh
 from code_review_skill.render import show
 from code_review_skill.staging import resolve_checklist, write_staging_entry
 from code_review_skill.symbols import (
-    _filter_symbols_by_diff,
-    _get_diff_hunks,
     discover,
     extract_symbols,
     extract_symbols_batch,
+    filter_symbols_by_diff,
+    get_diff_hunks,
 )
 from code_review_skill.types import ReviewPlan
 
@@ -276,8 +276,8 @@ def main() -> None:
                 source = file_path.read_text()
                 symbols = extract_symbols(source)
                 if args.diff:
-                    diff_hunks = _get_diff_hunks(args.file, args.diff)
-                    symbols = _filter_symbols_by_diff(symbols, diff_hunks)
+                    diff_hunks = get_diff_hunks(args.file, args.diff)
+                    symbols = filter_symbols_by_diff(symbols, diff_hunks)
                 print(json.dumps(symbols, indent=2))
         case "check":
             checklist_path = resolve_checklist(args.checklist)
@@ -549,19 +549,21 @@ def _run_init_checks() -> list[_InitCheckResult]:
             pre_check = raw_checklist.get("pre_check", "")
             checks.append(_InitCheckResult("checklist file", True, str(checklist_path)))
             checks.append(_InitCheckResult("checklist items", len(items) > 0, f"{len(items)} items"))
-            checks.append(_InitCheckResult(
-                "pre_check configured",
-                bool(pre_check) and pre_check != "make check",
-                repr(pre_check) if pre_check else "(not set)",
-            ))
+            checks.append(
+                _InitCheckResult(
+                    "pre_check configured",
+                    bool(pre_check) and pre_check != "make check",
+                    repr(pre_check) if pre_check else "(not set)",
+                )
+            )
         except Exception as exc:
             checks.append(_InitCheckResult("checklist file", False, f"parse error: {exc}"))
-            for name in ("checklist items", "pre_check configured"):
-                checks.append(_InitCheckResult(name, False, "skipped"))
+            checks.extend(
+                _InitCheckResult(name, False, "skipped") for name in ("checklist items", "pre_check configured")
+            )
     else:
         checks.append(_InitCheckResult("checklist file", False, "not found"))
-        for name in ("checklist items", "pre_check configured"):
-            checks.append(_InitCheckResult(name, False, "skipped"))
+        checks.extend(_InitCheckResult(name, False, "skipped") for name in ("checklist items", "pre_check configured"))
 
     # Check staging directory
     checks.append(_InitCheckResult("staging directory", staging_dir.is_dir(), str(staging_dir)))

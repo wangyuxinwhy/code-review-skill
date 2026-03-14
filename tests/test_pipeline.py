@@ -1,4 +1,4 @@
-# pyright: reportArgumentType=false, reportCallIssue=false, reportPrivateUsage=false
+# pyright: reportArgumentType=false, reportCallIssue=false
 """Tests for the code-review pipeline (symbols, cache, and merge logic)."""
 
 import hashlib
@@ -10,33 +10,33 @@ from typing import Any, ClassVar, cast
 import pytest
 
 from code_review_skill.cache import (
-    _restore_symbol_target,
     build,
     check,
     compute_file_hash,
     compute_symbol_hash,
     load_cache,
+    restore_symbol_target,
 )
 from code_review_skill.staging import (
-    _convert_annotations_to_offsets,
-    _convert_offsets_to_lines,
-    _compute_summary,
-    _normalize_symbol_target,
+    compute_summary,
+    convert_annotations_to_offsets,
+    convert_offsets_to_lines,
     enrich_check,
     has_non_pass,
     load_checklist,
     load_staging_files,
     merge_staging,
+    normalize_symbol_target,
     resolve_checklist,
     sort_checks,
     target_sort_key,
     write_staging_entry,
 )
 from code_review_skill.symbols import (
-    _filter_symbols_by_diff,
     discover_changed_files,
     extract_symbols,
     extract_symbols_batch,
+    filter_symbols_by_diff,
 )
 from code_review_skill.types import StagingEntry, SymbolDef, TargetEntry
 
@@ -210,7 +210,7 @@ class TestFilterSymbolsByDiff:
         ]
         diff_hunks = [(3, 4), (27, 27)]
 
-        filtered = _filter_symbols_by_diff(symbols, diff_hunks)
+        filtered = filter_symbols_by_diff(symbols, diff_hunks)
 
         names = [symbol["name"] for symbol in filtered]
         assert names == ["a", "c"]
@@ -220,7 +220,7 @@ class TestFilterSymbolsByDiff:
             {"name": "a", "type": "function", "lines": (1, 5)},
         ]
 
-        assert _filter_symbols_by_diff(symbols, [(10, 10), (20, 20)]) == []
+        assert filter_symbols_by_diff(symbols, [(10, 10), (20, 20)]) == []
 
 
 # --- Hashing ---
@@ -282,28 +282,28 @@ class TestAnnotationConversion:
     def test_line_to_offset_for_file(self) -> None:
         checks = [{"id": "a", "pass": False, "annotations": [{"line": 5, "message": "fix"}]}]
 
-        result = _convert_annotations_to_offsets(checks, base_line=1)
+        result = convert_annotations_to_offsets(checks, base_line=1)
 
         assert result[0]["annotations"] == [{"offset": 4, "message": "fix"}]
 
     def test_line_to_offset_for_symbol(self) -> None:
         checks = [{"id": "a", "pass": False, "annotations": [{"line": 15, "message": "fix"}]}]
 
-        result = _convert_annotations_to_offsets(checks, base_line=10)
+        result = convert_annotations_to_offsets(checks, base_line=10)
 
         assert result[0]["annotations"] == [{"offset": 5, "message": "fix"}]
 
     def test_offset_to_line_for_file(self) -> None:
         checks = [{"id": "a", "pass": False, "annotations": [{"offset": 4, "message": "fix"}]}]
 
-        result = _convert_offsets_to_lines(checks, base_line=1)
+        result = convert_offsets_to_lines(checks, base_line=1)
 
         assert result[0]["annotations"] == [{"line": 5, "message": "fix"}]
 
     def test_offset_to_line_for_symbol(self) -> None:
         checks = [{"id": "a", "pass": False, "annotations": [{"offset": 5, "message": "fix"}]}]
 
-        result = _convert_offsets_to_lines(checks, base_line=10)
+        result = convert_offsets_to_lines(checks, base_line=10)
 
         assert result[0]["annotations"] == [{"line": 15, "message": "fix"}]
 
@@ -319,22 +319,22 @@ class TestAnnotationConversion:
             }
         ]
 
-        offsets = _convert_annotations_to_offsets(original, base_line=10)
-        restored = _convert_offsets_to_lines(offsets, base_line=10)
+        offsets = convert_annotations_to_offsets(original, base_line=10)
+        restored = convert_offsets_to_lines(offsets, base_line=10)
 
         assert restored[0]["annotations"] == original[0]["annotations"]
 
     def test_checks_without_annotations_unchanged(self) -> None:
         checks = [{"id": "a", "pass": True}]
 
-        result = _convert_annotations_to_offsets(checks, base_line=1)
+        result = convert_annotations_to_offsets(checks, base_line=1)
 
         assert result == checks
 
     def test_does_not_mutate_original(self) -> None:
         checks: list[dict[str, Any]] = [{"id": "a", "pass": False, "annotations": [{"line": 5, "message": "fix"}]}]
 
-        _convert_annotations_to_offsets(checks, base_line=1)
+        convert_annotations_to_offsets(checks, base_line=1)
 
         assert checks[0]["annotations"][0]["line"] == 5
 
@@ -1234,7 +1234,7 @@ class TestCountChecks:
                 ]
             }
         ]
-        summary = _compute_summary(entries, symbols_reviewed=1)
+        summary = compute_summary(entries, symbols_reviewed=1)
 
         assert summary == {
             "blocking_failures": 1,
@@ -1245,7 +1245,7 @@ class TestCountChecks:
         }
 
     def test_empty_entries(self) -> None:
-        summary = _compute_summary([], symbols_reviewed=0)
+        summary = compute_summary([], symbols_reviewed=0)
 
         assert summary["passed"] == 0
         assert summary["blocking_failures"] == 0
@@ -1261,7 +1261,7 @@ class TestCountChecks:
                 ]
             }
         ]
-        summary = _compute_summary(entries, symbols_reviewed=1)
+        summary = compute_summary(entries, symbols_reviewed=1)
 
         assert summary == {
             "blocking_failures": 1,
@@ -1276,14 +1276,14 @@ class TestNormalizeSymbolTarget:
     def test_nested_target_passes_through(self) -> None:
         entry = {"target": {"type": "symbol", "file": "a.py", "symbol": "foo", "lines": [1, 5]}}
 
-        result = _normalize_symbol_target(entry, fallback_file="b.py")
+        result = normalize_symbol_target(entry, fallback_file="b.py")
 
         assert result == entry["target"]
 
     def test_flat_entry_builds_target(self) -> None:
         entry = {"symbol": "bar", "lines": [10, 20], "checks": []}
 
-        result = _normalize_symbol_target(entry, fallback_file="src/mod.py")
+        result = normalize_symbol_target(entry, fallback_file="src/mod.py")
 
         assert result == {
             "type": "symbol",
@@ -1295,7 +1295,7 @@ class TestNormalizeSymbolTarget:
     def test_flat_entry_with_name_key(self) -> None:
         entry = {"name": "Baz", "lines": [1, 3], "checks": []}
 
-        result = _normalize_symbol_target(entry, fallback_file="x.py")
+        result = normalize_symbol_target(entry, fallback_file="x.py")
 
         assert result["symbol"] == "Baz"
 
@@ -1348,7 +1348,7 @@ class TestRestoreSymbolTarget:
         symbol_def = SymbolDef(name="foo", type="function", lines=[10, 20])
         cache_checks = {"checks": [{"id": "a", "pass": False, "annotations": [{"offset": 3, "message": "fix"}]}]}
 
-        result = _restore_symbol_target("src/a.py", symbol_def, cache_checks)
+        result = restore_symbol_target("src/a.py", symbol_def, cache_checks)
 
         target = cast("dict[str, Any]", result["target"])
         assert target["symbol"] == "foo"
@@ -1360,7 +1360,7 @@ class TestRestoreSymbolTarget:
         symbol_def = SymbolDef(name="bar", type="function", lines=[5, 10])
         cache_checks = {"checks": [{"id": "a", "pass": True}]}
 
-        result = _restore_symbol_target("b.py", symbol_def, cache_checks)
+        result = restore_symbol_target("b.py", symbol_def, cache_checks)
 
         assert result["checks"] == [{"id": "a", "pass": True}]
 
@@ -1369,7 +1369,7 @@ class TestBuildInitInstructions:
     def test_contains_default_checklist(self) -> None:
         from code_review_skill.cli import _build_init_instructions
 
-        checklist = "version: \"2\"\nitems:\n  - id: test-item\n"
+        checklist = 'version: "2"\nitems:\n  - id: test-item\n'
         result = _build_init_instructions(checklist)
 
         assert "- id: test-item" in result
@@ -1379,7 +1379,7 @@ class TestBuildInitInstructions:
     def test_contains_project_structure_context(self) -> None:
         from code_review_skill.cli import _build_init_instructions
 
-        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+        result = _build_init_instructions('version: "2"\nitems: []\n')
 
         assert ".code-review/staging/" in result
         assert ".code-review/cache.json" in result
@@ -1389,7 +1389,7 @@ class TestBuildInitInstructions:
     def test_contains_precheck_context(self) -> None:
         from code_review_skill.cli import _build_init_instructions
 
-        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+        result = _build_init_instructions('version: "2"\nitems: []\n')
 
         assert "pre_check" in result
         assert "Gate 0" in result
@@ -1399,7 +1399,7 @@ class TestBuildInitInstructions:
     def test_contains_checklist_schema(self) -> None:
         from code_review_skill.cli import _build_init_instructions
 
-        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+        result = _build_init_instructions('version: "2"\nitems: []\n')
 
         assert "changeset" in result
         assert "blocking" in result
@@ -1408,7 +1408,7 @@ class TestBuildInitInstructions:
     def test_contains_validation_command(self) -> None:
         from code_review_skill.cli import _build_init_instructions
 
-        result = _build_init_instructions("version: \"2\"\nitems: []\n")
+        result = _build_init_instructions('version: "2"\nitems: []\n')
 
         assert "code-review-skill init check" in result
 
@@ -1472,9 +1472,7 @@ class TestInitCheck:
 
 
 class TestExtractSymbolsBatch:
-    MULTI_SOURCE: ClassVar[str] = (
-        "def foo():\n    pass\n\ndef bar():\n    pass\n"
-    )
+    MULTI_SOURCE: ClassVar[str] = "def foo():\n    pass\n\ndef bar():\n    pass\n"
 
     def test_batch_multiple_files(self, tmp_path: Path) -> None:
         f1 = _make_source_file(tmp_path, "a.py", self.MULTI_SOURCE)
@@ -1509,9 +1507,7 @@ class TestDiscoverChangedFiles:
 
         def mock_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
             if "diff" in cmd and "--name-only" in cmd:
-                return subprocess.CompletedProcess(
-                    cmd, 0, stdout="a.py\nb.js\nc.py\nREADME.md\n", stderr=""
-                )
+                return subprocess.CompletedProcess(cmd, 0, stdout="a.py\nb.js\nc.py\nREADME.md\n", stderr="")
             return original_run(cmd, **kwargs)
 
         monkeypatch.setattr(subprocess, "run", mock_run)

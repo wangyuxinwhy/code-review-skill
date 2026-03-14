@@ -136,13 +136,12 @@ def target_sort_key(entry: TargetEntry) -> tuple[int, str, int]:
 def has_non_pass(checks: Iterable[CheckResult]) -> bool:
     """True if any check is not a clean pass (failed, blocked, or missing pass field)."""
     return any(
-        (check["pass"] is not True) if "pass" in check
-        else check.get("status") in ("failed", "blocked")
+        (check["pass"] is not True) if "pass" in check else check.get("status") in ("failed", "blocked")
         for check in checks
     )
 
 
-def _extract_symbol_entries(staging: StagingEntry) -> list[StagingSymbolEntry]:
+def extract_symbol_entries(staging: StagingEntry) -> list[StagingSymbolEntry]:
     """Extract symbol entries from staging, supporting both grouped and per-symbol formats.
 
     Grouped (legacy): { "stage": "symbol", "targets": [{ "target": ..., "checks": ... }, ...] }
@@ -158,7 +157,7 @@ def _extract_symbol_entries(staging: StagingEntry) -> list[StagingSymbolEntry]:
         return []
 
 
-def _normalize_symbol_target(entry: StagingSymbolEntry, fallback_file: str) -> SymbolTarget:
+def normalize_symbol_target(entry: StagingSymbolEntry, fallback_file: str) -> SymbolTarget:
     """Handle subagent format variants for symbol targets."""
     if "target" in entry:
         return cast("SymbolTarget", entry["target"])
@@ -172,8 +171,9 @@ def _normalize_symbol_target(entry: StagingSymbolEntry, fallback_file: str) -> S
     )
 
 
-def _convert_annotations_to_offsets(
-    checks: Iterable[StagingCheck | CheckResult], base_line: int,
+def convert_annotations_to_offsets(
+    checks: Iterable[StagingCheck | CheckResult],
+    base_line: int,
 ) -> list[dict[str, Any]]:
     """Convert annotation absolute line numbers to offsets relative to base_line.
 
@@ -182,7 +182,7 @@ def _convert_annotations_to_offsets(
     """
     result: list[dict[str, Any]] = []
     for check in checks:
-        check_copy = dict(check)
+        check_copy: dict[str, Any] = dict(check)
         if check_copy.get("annotations"):
             check_copy["annotations"] = [
                 {"offset": annotation["line"] - base_line, "message": annotation["message"]}
@@ -192,13 +192,14 @@ def _convert_annotations_to_offsets(
     return result
 
 
-def _convert_offsets_to_lines(
-    checks: Iterable[StagingCheck | CheckResult], base_line: int,
+def convert_offsets_to_lines(
+    checks: Iterable[StagingCheck | CheckResult],
+    base_line: int,
 ) -> list[dict[str, Any]]:
     """Restore cached offset-based annotations to absolute line numbers for staging output."""
     result: list[dict[str, Any]] = []
     for check in checks:
-        check_copy = dict(check)
+        check_copy: dict[str, Any] = dict(check)
         if check_copy.get("annotations"):
             check_copy["annotations"] = [
                 {"line": annotation["offset"] + base_line, "message": annotation["message"]}
@@ -239,10 +240,10 @@ def _enrich_and_collect_entries(
 
             case "symbol":
                 file_path = staging.get("file", "")
-                symbol_entries = _extract_symbol_entries(staging)
+                symbol_entries = extract_symbol_entries(staging)
                 for symbol_entry in symbol_entries:
                     symbols_reviewed += 1
-                    target = _normalize_symbol_target(symbol_entry, file_path)
+                    target = normalize_symbol_target(symbol_entry, file_path)
                     checks = [enrich_check(check, checklist_lookup) for check in symbol_entry.get("checks", [])]
                     sorted_checks = sort_checks(checks)
                     entry = TargetEntry(target=target, checks=sorted_checks)
@@ -266,14 +267,15 @@ def merge_staging(
     """
     checklist_lookup = checklist_items or {}
     all_entries, filtered_targets, symbols_reviewed = _enrich_and_collect_entries(
-        staging_files, checklist_lookup,
+        staging_files,
+        checklist_lookup,
     )
     filtered_targets.sort(key=target_sort_key)
-    summary = _compute_summary(all_entries, symbols_reviewed)
+    summary = compute_summary(all_entries, symbols_reviewed)
     return MergeResult(filtered_targets, symbols_reviewed, summary)
 
 
-def _compute_summary(entries: Iterable[TargetEntry], symbols_reviewed: int) -> ReviewSummary:
+def compute_summary(entries: Iterable[TargetEntry], symbols_reviewed: int) -> ReviewSummary:
     """Count checks by status/level to build summary statistics."""
     blocking_failures = 0
     advisory_failures = 0

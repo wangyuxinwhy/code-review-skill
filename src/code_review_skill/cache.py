@@ -8,15 +8,15 @@ from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 from code_review_skill.staging import (
-    _compute_summary,
-    _convert_annotations_to_offsets,
-    _convert_offsets_to_lines,
-    _extract_symbol_entries,
-    _normalize_symbol_target,
+    compute_summary,
+    convert_annotations_to_offsets,
+    convert_offsets_to_lines,
+    extract_symbol_entries,
     has_non_pass,
     load_checklist,
     load_staging_files,
     merge_staging,
+    normalize_symbol_target,
     target_sort_key,
 )
 from code_review_skill.symbols import extract_symbols
@@ -33,6 +33,7 @@ from code_review_skill.types import (
     SymbolTarget,
     TargetEntry,
 )
+
 
 def compute_file_hash(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
@@ -65,7 +66,7 @@ def load_cache(cache_path: Path, checklist_path: Path) -> CacheFile | None:
     checklist = load_checklist(checklist_path)
     if raw_cache.get("checklist_version") != checklist["version"]:
         return None
-    return raw_cache
+    return cast("CacheFile", raw_cache)
 
 
 class _FileCacheResult(NamedTuple):
@@ -161,7 +162,7 @@ def _check_symbol_cache(
             if symbol_entry:
                 file_cached.append(symbol["name"])
                 hit += 1
-                symbol_targets.append(_restore_symbol_target(file_str, symbol, symbol_entry))
+                symbol_targets.append(restore_symbol_target(file_str, symbol, symbol_entry))
             else:
                 file_review.append(symbol["name"])
                 miss += 1
@@ -175,7 +176,7 @@ def _check_symbol_cache(
 
 def _build_cached_staging_entry(file_str: str, cache_checks: CacheChecks) -> dict[str, Any]:
     """Build a staging entry dict from cached checks, converting offsets to lines."""
-    checks_with_lines = _convert_offsets_to_lines(cache_checks["checks"], base_line=1)
+    checks_with_lines = convert_offsets_to_lines(cache_checks["checks"], base_line=1)
     return {
         "stage": "file",
         "target": {"type": "file", "file": file_str},
@@ -247,9 +248,9 @@ def check(
     )
 
 
-def _restore_symbol_target(file_str: str, symbol_def: SymbolDef, cache_checks: CacheChecks) -> TargetEntry:
+def restore_symbol_target(file_str: str, symbol_def: SymbolDef, cache_checks: CacheChecks) -> TargetEntry:
     """Reconstruct a symbol staging target from cache, converting offsets to lines."""
-    checks_with_lines = _convert_offsets_to_lines(cache_checks["checks"], base_line=symbol_def["lines"][0])
+    checks_with_lines = convert_offsets_to_lines(cache_checks["checks"], base_line=symbol_def["lines"][0])
     return TargetEntry(
         target=SymbolTarget(
             type="symbol",
@@ -274,7 +275,7 @@ def _build_files_cache(staging_files: Iterable[StagingEntry]) -> dict[str, Cache
         if not file_path.exists():
             continue
         content_hash = compute_file_hash(file_path)
-        offset_checks = _convert_annotations_to_offsets(staging.get("checks", []), base_line=1)
+        offset_checks = convert_annotations_to_offsets(staging.get("checks", []), base_line=1)
         files_cache[content_hash] = CacheChecks(checks=cast("list[CheckResult]", offset_checks))
     return files_cache
 
@@ -286,10 +287,10 @@ def _build_symbols_cache(staging_files: Iterable[StagingEntry]) -> dict[str, Cac
     for staging in staging_files:
         if staging.get("stage") != "symbol":
             continue
-        symbol_entries = _extract_symbol_entries(staging)
+        symbol_entries = extract_symbol_entries(staging)
         for symbol_entry in symbol_entries:
             fallback_file = staging.get("file", "")
-            sym_target = _normalize_symbol_target(symbol_entry, fallback_file)
+            sym_target = normalize_symbol_target(symbol_entry, fallback_file)
             file_str = sym_target["file"]
             lines = sym_target["lines"]
 
@@ -302,7 +303,7 @@ def _build_symbols_cache(staging_files: Iterable[StagingEntry]) -> dict[str, Cac
             except (IndexError, ValueError):
                 continue
 
-            offset_checks = _convert_annotations_to_offsets(symbol_entry.get("checks", []), base_line=lines[0])
+            offset_checks = convert_annotations_to_offsets(symbol_entry.get("checks", []), base_line=lines[0])
             symbols_cache[symbol_hash] = CacheChecks(checks=cast("list[CheckResult]", offset_checks))
     return symbols_cache
 
@@ -320,7 +321,7 @@ def _convert_target_annotations_to_offsets(targets: list[TargetEntry]) -> None:
                 continue
         target_entry["checks"] = cast(
             "list[CheckResult]",
-            _convert_annotations_to_offsets(target_entry["checks"], base_line),
+            convert_annotations_to_offsets(target_entry["checks"], base_line),
         )
 
 
@@ -446,6 +447,7 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
 
 class _RescanResult(NamedTuple):
     """Results from scanning files against cache hashes."""
+
     new_targets: list[TargetEntry]
     all_entries: list[TargetEntry]
     symbols_reviewed: int
@@ -512,8 +514,12 @@ def _scan_files_against_cache(
                     new_targets.append(entry)
 
     return _RescanResult(
-        new_targets, all_entries, symbols_reviewed,
-        matched_file_hashes, matched_symbol_hashes, files_scanned,
+        new_targets,
+        all_entries,
+        symbols_reviewed,
+        matched_file_hashes,
+        matched_symbol_hashes,
+        files_scanned,
     )
 
 
@@ -535,13 +541,11 @@ def _rescan_files(
     symbols_cache = data.get("symbols", {})
     targets_before = len(data.get("targets", []))
 
-    changeset_targets = [
-        entry for entry in data.get("targets", []) if entry["target"]["type"] == "changeset"
-    ]
+    changeset_targets = [entry for entry in data.get("targets", []) if entry["target"]["type"] == "changeset"]
 
     scan = _scan_files_against_cache(root, changeset_targets, files_cache, symbols_cache)
     scan.new_targets.sort(key=target_sort_key)
-    summary = _compute_summary(scan.all_entries, scan.symbols_reviewed)
+    summary = compute_summary(scan.all_entries, scan.symbols_reviewed)
 
     refreshed = CacheFile(
         version="3",

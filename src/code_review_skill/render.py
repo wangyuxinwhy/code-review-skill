@@ -2,8 +2,9 @@
 
 import json
 from pathlib import Path
+from typing import cast
 
-from code_review_skill.types import CacheFile, ReviewSummary
+from code_review_skill.types import CacheFile, FileTarget, ReviewSummary, SymbolTarget
 
 
 def _format_summary(summary: ReviewSummary) -> str:
@@ -78,11 +79,13 @@ def show(cache_path: Path) -> str:
         # Build header
         match target_type:
             case "symbol":
-                file_path = target["file"]
-                start, end = target["lines"]
-                header = f"### {target['symbol']}  {file_path}:{start}-{end}"
+                sym = cast("SymbolTarget", target)
+                file_path = sym["file"]
+                start, end = sym["lines"]
+                header = f"### {sym['symbol']}  {file_path}:{start}-{end}"
             case "file":
-                file_path = target["file"]
+                ft = cast("FileTarget", target)
+                file_path = ft["file"]
                 start, end = 1, 0  # will be set per-annotation
                 header = f"### File: {file_path}"
             case _:

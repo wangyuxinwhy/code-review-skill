@@ -1,7 +1,3 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "code-review-skill"
 version = "0.1.0"
@@ -14,7 +10,6 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = ["pyyaml>=6"]
@@ -27,60 +22,61 @@ Issues = "https://github.com/wangyuxinwhy/code-review-skill/issues"
 [project.scripts]
 code-review-skill = "code_review_skill.cli:main"
 
-[tool.setuptools.packages.find]
-include = ["code_review_skill*"]
-
 [dependency-groups]
 dev = ["ruff>=0.11", "basedpyright>=1.29", "pytest>=8"]
-
-# ---------- Ruff ----------
 
 [tool.ruff]
 target-version = "py312"
 line-length = 120
-src = ["code_review_skill"]
+src = ["src"]
 
 [tool.ruff.lint]
 select = [
-    "E", "W",       # pycodestyle
-    "F",             # pyflakes
-    "I",             # isort
-    "UP",            # pyupgrade (3.12+)
-    "B",             # bugbear
-    "SIM",           # simplify
-    "PIE",           # misc lints
-    "PT",            # pytest style
-    "RUF",           # ruff-specific
-    "N",             # pep8-naming
-    "C4",            # comprehensions
-    "TCH",           # type-checking imports
-    "PL",            # pylint subset
-    "PERF",          # performance
-    "FURB",          # refurb
+    "E",
+    "W",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade (3.12+)
+    "B",    # bugbear
+    "SIM",  # simplify
+    "PIE",  # misc lints
+    "PT",   # pytest style
+    "RUF",  # ruff-specific
+    "N",    # pep8-naming
+    "C4",   # comprehensions
+    "TC",   # type-checking imports
+    "PL",   # pylint subset
+    "PERF", # performance
+    "FURB", # refurb
 ]
 ignore = [
-    "PLR0913",       # too-many-arguments — some functions legitimately need them
-    "PLR2004",       # magic-value-comparison — too noisy for check IDs / constants
-    "PLR0912",       # too-many-branches — complex but well-structured functions
-    "PLR0915",       # too-many-statements — same
-    "SIM108",        # ternary — not always more readable
-    "UP007",         # X | Y union syntax in older annotations — we use it, but not everywhere
+    "PLR0913", # too-many-arguments — some functions legitimately need them
+    "PLR2004", # magic-value-comparison — too noisy for check IDs / constants
+    "PLR0912", # too-many-branches — complex but well-structured functions
+    "PLR0911", # too-many-return-statements — match/case functions need them
+    "PLR0915", # too-many-statements — same
+    "SIM108",  # ternary — not always more readable
+    "UP007",   # X | Y union syntax in older annotations — we use it, but not everywhere
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = [
-    "PLR2004",       # magic values fine in tests
-    "PT011",         # pytest.raises too broad — acceptable in tests
-    "N802",          # function name casing — test names can be descriptive
+    "PLR2004",  # magic values fine in tests
+    "PT011",    # pytest.raises too broad — acceptable in tests
+    "N802",     # function name casing — test names can be descriptive
+    "PLC0415",  # local imports — useful for test isolation
+    "E501",     # line length — test data strings can be long
 ]
 
 [tool.ruff.lint.isort]
 known-first-party = ["code_review_skill"]
 
-# ---------- Basedpyright ----------
-
 [tool.basedpyright]
 pythonVersion = "3.12"
 pythonPlatform = "All"
 typeCheckingMode = "strict"
-include = ["code_review_skill"]
+include = ["src/code_review_skill"]
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"

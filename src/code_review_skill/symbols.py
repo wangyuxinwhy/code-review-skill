@@ -49,7 +49,7 @@ def _visit_symbols(
 _HUNK_RE = re.compile(r"^@@\s.*?\+(\d+)(?:,(\d+))?\s@@")
 
 
-def _get_diff_hunks(file_path: str, diff_range: str) -> list[LineRange]:
+def get_diff_hunks(file_path: str, diff_range: str) -> list[LineRange]:
     """Parse git diff hunks into (start, end) line ranges (1-indexed, inclusive)."""
     try:
         diff_output = subprocess.run(
@@ -77,14 +77,11 @@ def _ranges_overlap(range_a: LineRange, range_b: LineRange) -> bool:
     return range_a[0] <= range_b[1] and range_b[0] <= range_a[1]
 
 
-def _filter_symbols_by_diff(
+def filter_symbols_by_diff(
     symbols: Iterable[SymbolDef],
     diff_hunks: Sequence[LineRange],
 ) -> list[SymbolDef]:
-    return [
-        symbol for symbol in symbols
-        if any(_ranges_overlap(symbol["lines"], hunk) for hunk in diff_hunks)
-    ]
+    return [symbol for symbol in symbols if any(_ranges_overlap(symbol["lines"], hunk) for hunk in diff_hunks)]
 
 
 def extract_symbols_batch(
@@ -106,8 +103,8 @@ def extract_symbols_batch(
             continue
         symbols = extract_symbols(source)
         if diff_range:
-            diff_hunks = _get_diff_hunks(file_str, diff_range)
-            symbols = _filter_symbols_by_diff(symbols, diff_hunks)
+            diff_hunks = get_diff_hunks(file_str, diff_range)
+            symbols = filter_symbols_by_diff(symbols, diff_hunks)
         if symbols:
             result[file_str] = symbols
     return result
