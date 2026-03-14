@@ -45,15 +45,12 @@ def resolve_checklist(override_path: Path | None = None) -> Path:
     return Path(str(pkg_files("code_review_skill.data").joinpath("checklist.yaml")))
 
 
-# --- Checklist ---
-
-
 def load_checklist(checklist_path: Path) -> Checklist:
     """Load checklist YAML and build a lookup dict by item id."""
-    data: dict[str, Any] = yaml.safe_load(checklist_path.read_text())
-    version = str(data.get("version", "unknown"))
+    raw_checklist: dict[str, Any] = yaml.safe_load(checklist_path.read_text())
+    version = str(raw_checklist.get("version", "unknown"))
     items: dict[str, ChecklistItem] = {}
-    for item in data.get("items", []):
+    for item in raw_checklist.get("items", []):
         items[item["id"]] = ChecklistItem(
             id=item["id"],
             category=item["category"],
@@ -63,16 +60,12 @@ def load_checklist(checklist_path: Path) -> Checklist:
     return Checklist(version=version, items=items)
 
 
-# --- Staging I/O ---
-
-
 def load_staging_files(staging_dir: Path) -> list[StagingEntry]:
     files = sorted(path for path in staging_dir.glob("*.json") if not path.name.startswith("_"))
     return [cast("StagingEntry", json.loads(file_path.read_text())) for file_path in files]
 
 
 def _derive_staging_filename(entry: StagingEntry) -> str:
-    """Derive the staging filename from entry stage and target."""
     stage = entry.get("stage", "unknown")
 
     def sanitize(s: str) -> str:
@@ -103,20 +96,15 @@ def write_staging_entry(staging_dir: Path, entry: StagingEntry) -> Path:
     return path
 
 
-# --- Enrichment and sorting ---
-
-
 def enrich_check(check: StagingCheck | CheckResult, checklist_items: Mapping[str, ChecklistItem]) -> CheckResult:
     """Fill in category/level/summary/status from checklist when missing."""
     check_id = check.get("id", "")
     item = checklist_items.get(check_id)
-    # Copy to plain dict to add fields; cast back to CheckResult at the end.
     enriched = dict(check)
     if item:
         enriched.setdefault("category", item["category"])
         enriched.setdefault("level", item["level"])
         enriched.setdefault("description", item["description"])
-    # Derive status from pass field
     if "status" not in enriched:
         pass_value = enriched.get("pass")
         if pass_value is True:
@@ -184,9 +172,6 @@ def _normalize_symbol_target(entry: StagingSymbolEntry, fallback_file: str) -> S
     )
 
 
-# --- Annotation conversion ---
-
-
 def _convert_annotations_to_offsets(
     checks: Iterable[StagingCheck | CheckResult], base_line: int,
 ) -> list[dict[str, Any]]:
@@ -221,9 +206,6 @@ def _convert_offsets_to_lines(
             ]
         result.append(check_copy)
     return result
-
-
-# --- Merge logic ---
 
 
 def _enrich_and_collect_entries(

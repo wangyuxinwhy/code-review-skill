@@ -2,8 +2,6 @@
 
 from typing import Literal, NamedTuple, NotRequired, TypedDict
 
-# --- Constants ---
-
 CATEGORY_ORDER: dict[str, int] = {
     "design": 1,
     "correctness": 2,
@@ -18,9 +16,6 @@ TARGET_TYPE_ORDER: dict[str, int] = {
 
 LineRange = tuple[int, int]
 """1-indexed inclusive (start, end) line range."""
-
-
-# --- Target descriptors ---
 
 
 class ChangesetTarget(TypedDict):
@@ -42,9 +37,6 @@ class SymbolTarget(TypedDict):
 TargetDescriptor = ChangesetTarget | FileTarget | SymbolTarget
 
 
-# --- AST Symbol Extraction ---
-
-
 class SymbolDef(TypedDict):
     name: str
     type: Literal["function", "method", "class"]
@@ -54,9 +46,6 @@ class SymbolDef(TypedDict):
 class DiscoverOutput(TypedDict):
     files: list[str]
     symbols: dict[str, list[SymbolDef]]
-
-
-# --- Check ---
 
 
 class Annotation(TypedDict):
@@ -99,9 +88,6 @@ StagingCheck = TypedDict(
         "annotations": NotRequired[list[StagingAnnotation]],
     },
 )
-
-
-# --- Composite types ---
 
 
 class StagingSymbolEntry(TypedDict, total=False):
@@ -176,9 +162,6 @@ class ChecklistItem(TypedDict):
 class Checklist(TypedDict):
     version: str
     items: dict[str, ChecklistItem]
-
-
-# --- Cache types (v3: hash-keyed) ---
 
 
 class CacheChecks(TypedDict):

@@ -1,4 +1,4 @@
-"""Report rendering — show command for annotated source output."""
+"""Report rendering — annotated source output."""
 
 import json
 from pathlib import Path
@@ -58,17 +58,16 @@ def show(cache_path: Path) -> str:
     if not cache_path.exists():
         raise FileNotFoundError(f"Cache file not found: {cache_path}")
 
-    data: CacheFile = json.loads(cache_path.read_text())
-    if data.get("version") != "3":
-        raise ValueError(f"Unsupported cache version: {data.get('version')}")
+    cache: CacheFile = json.loads(cache_path.read_text())
+    if cache.get("version") != "3":
+        raise ValueError(f"Unsupported cache version: {cache.get('version')}")
 
-    summary: ReviewSummary = data["summary"]
+    summary: ReviewSummary = cache["summary"]
     out: list[str] = [f"## {_format_summary(summary)}", ""]
 
-    # Cache of read source files
     source_cache: dict[str, list[str] | None] = {}
 
-    for target_entry in data.get("targets", []):
+    for target_entry in cache.get("targets", []):
         failed_checks = [check for check in target_entry.get("checks", []) if check.get("pass") is not True]
         if not failed_checks:
             continue

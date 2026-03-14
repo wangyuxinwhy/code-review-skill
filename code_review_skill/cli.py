@@ -544,9 +544,9 @@ def _run_init_checks() -> list[_InitCheckResult]:
     # Check checklist file exists and parses
     if checklist_path.exists():
         try:
-            data = yaml.safe_load(checklist_path.read_text())
-            items = data.get("items", [])
-            pre_check = data.get("pre_check", "")
+            raw_checklist = yaml.safe_load(checklist_path.read_text())
+            items = raw_checklist.get("items", [])
+            pre_check = raw_checklist.get("pre_check", "")
             checks.append(_InitCheckResult("checklist file", True, str(checklist_path)))
             checks.append(_InitCheckResult("checklist items", len(items) > 0, f"{len(items)} items"))
             checks.append(_InitCheckResult(

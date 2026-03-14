@@ -34,15 +34,11 @@ from code_review_skill.types import (
     TargetEntry,
 )
 
-# --- Hashing ---
-
-
 def compute_file_hash(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def compute_symbol_hash(path: Path, lines: tuple[int, int]) -> str:
-    """Hash a symbol's source lines (1-indexed, inclusive range)."""
     all_lines = path.read_text().splitlines()
     start, end = lines
     selected = all_lines[start - 1 : end]
@@ -51,30 +47,25 @@ def compute_symbol_hash(path: Path, lines: tuple[int, int]) -> str:
 
 
 def _hash_symbol_from_lines(all_lines: list[str], lines: tuple[int, int]) -> str:
-    """Hash a symbol from pre-read source lines (avoids re-reading the file)."""
     start, end = lines
     selected = all_lines[start - 1 : end]
     content = "\n".join(selected)
     return "sha256:" + hashlib.sha256(content.encode()).hexdigest()
 
 
-# --- Cache: check ---
-
-
 def load_cache(cache_path: Path, checklist_path: Path) -> CacheFile | None:
-    """Load v3 cache file, returning None if missing, wrong version, or checklist mismatch."""
     if not cache_path.exists():
         return None
     try:
-        data: dict[str, Any] = json.loads(cache_path.read_text())
+        raw_cache: dict[str, Any] = json.loads(cache_path.read_text())
     except (json.JSONDecodeError, OSError):
         return None
-    if data.get("version") != "3" or "files" not in data:
+    if raw_cache.get("version") != "3" or "files" not in raw_cache:
         return None
     checklist = load_checklist(checklist_path)
-    if data.get("checklist_version") != checklist["version"]:
+    if raw_cache.get("checklist_version") != checklist["version"]:
         return None
-    return data
+    return raw_cache
 
 
 class _FileCacheResult(NamedTuple):
@@ -153,7 +144,6 @@ def _check_symbol_cache(
         except OSError:
             continue
 
-        # When diff_symbols is provided, only consider symbols touched by the diff
         if diff_symbols is not None:
             diff_names = {s["name"] for s in diff_symbols.get(file_str, [])}
             symbols = [s for s in symbols if s["name"] in diff_names]
@@ -241,7 +231,6 @@ def check(
     review_symbols = symbol_review.review_symbols
     all_symbol_targets = symbol_cached.symbol_targets + symbol_review.symbol_targets
 
-    # Side effect: write staging for cache hits
     _write_cache_hits_to_staging(file_result.cached_entries, all_symbol_targets, staging_dir)
 
     return CheckOutput(
@@ -270,9 +259,6 @@ def _restore_symbol_target(file_str: str, symbol_def: SymbolDef, cache_checks: C
         ),
         checks=cast("list[CheckResult]", checks_with_lines),
     )
-
-
-# --- Cache: build ---
 
 
 def _build_files_cache(staging_files: Iterable[StagingEntry]) -> dict[str, CacheChecks]:
@@ -339,7 +325,6 @@ def _convert_target_annotations_to_offsets(targets: list[TargetEntry]) -> None:
 
 
 def _write_cache_file(cache_data: CacheFile, cache_path: Path) -> None:
-    """Serialize and write cache data to disk."""
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(cache_data, indent=2, ensure_ascii=False) + "\n")
 
@@ -376,14 +361,10 @@ def build(
     return cache_data
 
 
-# --- Refresh (self-heal) ---
-
-
 _DEFAULT_EXCLUDE = frozenset({".git", ".venv", "venv", "__pycache__", "node_modules", ".tox", ".mypy_cache"})
 
 
 def _discover_python_files(root: Path, exclude: frozenset[str] = _DEFAULT_EXCLUDE) -> list[Path]:
-    """Find all Python files under root, excluding specified directory names."""
     results: list[Path] = []
     for path in root.rglob("*.py"):
         if any(part in exclude for part in path.parts):
@@ -442,14 +423,13 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
     """
     if not cache_path.exists():
         raise FileNotFoundError(f"Cache file not found: {cache_path}")
-    data: CacheFile = json.loads(cache_path.read_text())
-    if data.get("version") != "3":
-        raise ValueError(f"Unsupported cache version: {data.get('version')}")
+    cache: CacheFile = json.loads(cache_path.read_text())
+    if cache.get("version") != "3":
+        raise ValueError(f"Unsupported cache version: {cache.get('version')}")
 
-    targets_before = len(data.get("targets", []))
+    targets_before = len(cache.get("targets", []))
 
-    # Fast path: verify existing targets are still valid
-    if _verify_targets(data, root):
+    if _verify_targets(cache, root):
         return RefreshStats(
             files_scanned=0,
             file_hit=0,
@@ -461,8 +441,7 @@ def refresh(cache_path: Path, root: Path) -> RefreshStats:
             fresh=True,
         )
 
-    # Slow path: full rescan
-    return _rescan_files(data, cache_path, root)
+    return _rescan_files(cache, cache_path, root)
 
 
 class _RescanResult(NamedTuple):
@@ -495,7 +474,6 @@ def _scan_files_against_cache(
         files_scanned += 1
         rel_path = str(file_path.relative_to(root))
 
-        # File-level match
         file_hash = compute_file_hash(file_path)
         if file_hash in files_cache:
             matched_file_hashes.add(file_hash)
@@ -506,7 +484,6 @@ def _scan_files_against_cache(
             new_targets.append(entry)
             all_entries.append(entry)
 
-        # Symbol-level match — read file once, hash from memory
         try:
             source = file_path.read_text()
             all_lines = source.splitlines()
