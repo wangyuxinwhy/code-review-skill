@@ -2,9 +2,15 @@
 
 import json
 from pathlib import Path
-from typing import cast
+from typing import NamedTuple
 
-from code_review_skill.types import CacheFile, FileTarget, ReviewSummary, SymbolTarget
+from code_review_skill.types import (
+    CacheFile,
+    CheckResult,
+    ReviewSummary,
+    TargetDescriptor,
+    TargetEntry,
+)
 
 
 def _format_summary(summary: ReviewSummary) -> str:
@@ -49,6 +55,79 @@ def _annotate_source(
     return "\n".join(out)
 
 
+class _HeaderInfo(NamedTuple):
+    header: str
+    file_path: str
+    start: int
+    end: int
+
+
+class ReportRenderer:
+    """Render actionable findings as annotated source for curator review.
+
+    Encapsulates the output buffer and source file cache as instance state,
+    allowing per-target rendering methods to share them without parameter passing.
+    """
+
+    def __init__(self, cache: CacheFile) -> None:
+        self.cache = cache
+        self.out: list[str] = []
+        self.source_cache: dict[str, list[str] | None] = {}
+
+    def render(self) -> str:
+        summary: ReviewSummary = self.cache["summary"]
+        self.out = [f"## {_format_summary(summary)}", ""]
+        for target_entry in self.cache.get("targets", []):
+            self._render_target(target_entry)
+        return "\n".join(self.out)
+
+    def _render_target(self, target_entry: TargetEntry) -> None:
+        failed_checks = [c for c in target_entry.get("checks", []) if c.get("pass") is not True]
+        if not failed_checks:
+            return
+
+        target = target_entry["target"]
+        header, file_path, start, end = self._build_header(target)
+        self.out.append(header)
+
+        for check in failed_checks:
+            check_id = check.get("id", "?")
+            level = check.get("level", "advisory").upper()
+            note = check.get("note", "")
+            self.out.append(f"[{level} {check_id}] {note}")
+
+        if target["type"] == "symbol" and file_path:
+            self._render_annotated_source(file_path, start, end, failed_checks)
+
+        self.out.append("")
+
+    def _build_header(self, target: TargetDescriptor) -> _HeaderInfo:
+        match target["type"]:
+            case "symbol":
+                file_path = target["file"]
+                start, end = target["lines"]
+                return _HeaderInfo(f"### {target['symbol']}  {file_path}:{start}-{end}", file_path, start, end)
+            case "file":
+                return _HeaderInfo(f"### File: {target['file']}", target["file"], 1, 0)
+            case _:
+                return _HeaderInfo("### Changeset", "", 0, 0)
+
+    def _render_annotated_source(self, file_path: str, start: int, end: int, failed_checks: list[CheckResult]) -> None:
+        if file_path not in self.source_cache:
+            self.source_cache[file_path] = _read_source_lines(file_path)
+        source_lines = self.source_cache[file_path]
+        if not source_lines:
+            return
+        annotation_map: dict[int, str] = {}
+        for check in failed_checks:
+            for annotation in check.get("annotations", []):
+                abs_line = annotation["offset"] + start
+                annotation_map[abs_line] = f"[{check.get('id', '?')}] {annotation['message']}"
+        self.out.append("```")
+        self.out.append(_annotate_source(source_lines, start, end, annotation_map))
+        self.out.append("```")
+
+
 def show(cache_path: Path) -> str:
     """Render actionable findings as annotated source for curator review.
 
@@ -58,66 +137,7 @@ def show(cache_path: Path) -> str:
     """
     if not cache_path.exists():
         raise FileNotFoundError(f"Cache file not found: {cache_path}")
-
     cache: CacheFile = json.loads(cache_path.read_text())
     if cache.get("version") != "3":
         raise ValueError(f"Unsupported cache version: {cache.get('version')}")
-
-    summary: ReviewSummary = cache["summary"]
-    out: list[str] = [f"## {_format_summary(summary)}", ""]
-
-    source_cache: dict[str, list[str] | None] = {}
-
-    for target_entry in cache.get("targets", []):
-        failed_checks = [check for check in target_entry.get("checks", []) if check.get("pass") is not True]
-        if not failed_checks:
-            continue
-
-        target = target_entry["target"]
-        target_type = target["type"]
-
-        # Build header
-        match target_type:
-            case "symbol":
-                sym = cast("SymbolTarget", target)
-                file_path = sym["file"]
-                start, end = sym["lines"]
-                header = f"### {sym['symbol']}  {file_path}:{start}-{end}"
-            case "file":
-                ft = cast("FileTarget", target)
-                file_path = ft["file"]
-                start, end = 1, 0  # will be set per-annotation
-                header = f"### File: {file_path}"
-            case _:
-                header = "### Changeset"
-                file_path = ""
-                start, end = 0, 0
-
-        out.append(header)
-
-        # List failed checks as diagnostics
-        for check in failed_checks:
-            check_id = check.get("id", "?")
-            level = check.get("level", "advisory").upper()
-            note = check.get("note", "")
-            out.append(f"[{level} {check_id}] {note}")
-
-        # Render annotated source for symbol targets
-        if target_type == "symbol" and file_path:
-            if file_path not in source_cache:
-                source_cache[file_path] = _read_source_lines(file_path)
-            source_lines = source_cache[file_path]
-            if source_lines:
-                # Collect all annotations: offset -> absolute line
-                annotation_map: dict[int, str] = {}
-                for check in failed_checks:
-                    for annotation in check.get("annotations", []):
-                        abs_line = annotation["offset"] + start
-                        annotation_map[abs_line] = f"[{check.get('id', '?')}] {annotation['message']}"
-                out.append("```")
-                out.append(_annotate_source(source_lines, start, end, annotation_map))
-                out.append("```")
-
-        out.append("")
-
-    return "\n".join(out)
+    return ReportRenderer(cache).render()

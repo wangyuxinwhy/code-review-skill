@@ -117,36 +117,51 @@ def _check_file_cache(
     return _FileCacheResult(cached, review, cached_entries, hit, miss)
 
 
-def _check_symbol_cache(
-    file_list: Sequence[str],
-    cache: CacheFile | None,
-    diff_symbols: dict[str, list[SymbolDef]] | None = None,
-) -> _SymbolCacheResult:
-    """Look up per-symbol content hashes against cache for a list of files.
+class SymbolCacheChecker:
+    """Check per-symbol content hashes against cache for a list of files.
 
-    When diff_symbols is provided, only symbols that appear in the diff are
-    considered. This filters out unchanged symbols from the review list.
-    Uncached symbols are tracked in review_symbols; the caller decides which to use.
+    Encapsulates cache lookup state (accumulators, cache reference, diff filter)
+    as instance attributes so that per-file processing methods can share them
+    without complex parameter passing or tuple returns.
     """
-    cached_symbols: dict[str, list[str]] = {}
-    review_symbols: dict[str, list[str]] = {}
-    symbol_targets: list[TargetEntry] = []
-    hit = 0
-    miss = 0
 
-    for file_str in file_list:
+    def __init__(
+        self,
+        cache: CacheFile | None,
+        diff_symbols: dict[str, list[SymbolDef]] | None = None,
+    ) -> None:
+        self.cache = cache
+        self.diff_symbols = diff_symbols
+        self.cached_symbols: dict[str, list[str]] = {}
+        self.review_symbols: dict[str, list[str]] = {}
+        self.symbol_targets: list[TargetEntry] = []
+        self.hit = 0
+        self.miss = 0
+
+    def check(self, file_list: Sequence[str]) -> _SymbolCacheResult:
+        for file_str in file_list:
+            self._process_file(file_str)
+        return _SymbolCacheResult(
+            self.cached_symbols,
+            self.review_symbols,
+            self.symbol_targets,
+            self.hit,
+            self.miss,
+        )
+
+    def _process_file(self, file_str: str) -> None:
         file_path = Path(file_str)
         if not file_path.exists():
-            continue
+            return
         try:
             source = file_path.read_text()
             all_lines = source.splitlines()
             symbols = extract_symbols(source)
         except OSError:
-            continue
+            return
 
-        if diff_symbols is not None:
-            diff_names = {s["name"] for s in diff_symbols.get(file_str, [])}
+        if self.diff_symbols is not None:
+            diff_names = {s["name"] for s in self.diff_symbols.get(file_str, [])}
             symbols = [s for s in symbols if s["name"] in diff_names]
 
         file_cached: list[str] = []
@@ -156,22 +171,29 @@ def _check_symbol_cache(
                 symbol_hash = _hash_symbol_from_lines(all_lines, symbol["lines"])
             except (IndexError, ValueError):
                 file_review.append(symbol["name"])
-                miss += 1
+                self.miss += 1
                 continue
-            symbol_entry = cache["symbols"].get(symbol_hash) if cache else None
+            symbol_entry = self.cache["symbols"].get(symbol_hash) if self.cache else None
             if symbol_entry:
                 file_cached.append(symbol["name"])
-                hit += 1
-                symbol_targets.append(restore_symbol_target(file_str, symbol, symbol_entry))
+                self.hit += 1
+                self.symbol_targets.append(restore_symbol_target(file_str, symbol, symbol_entry))
             else:
                 file_review.append(symbol["name"])
-                miss += 1
-        if file_cached:
-            cached_symbols[file_str] = file_cached
-        if file_review:
-            review_symbols[file_str] = file_review
+                self.miss += 1
 
-    return _SymbolCacheResult(cached_symbols, review_symbols, symbol_targets, hit, miss)
+        if file_cached:
+            self.cached_symbols[file_str] = file_cached
+        if file_review:
+            self.review_symbols[file_str] = file_review
+
+
+def _check_symbol_cache(
+    file_list: Sequence[str],
+    cache: CacheFile | None,
+    diff_symbols: dict[str, list[SymbolDef]] | None = None,
+) -> _SymbolCacheResult:
+    return SymbolCacheChecker(cache, diff_symbols).check(file_list)
 
 
 def _build_cached_staging_entry(file_str: str, cache_checks: CacheChecks) -> dict[str, Any]:
