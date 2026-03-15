@@ -139,7 +139,6 @@ class SymbolCacheChecker:
         self.miss = 0
 
     def check(self, file_list: Sequence[str]) -> _SymbolCacheResult:
-        """Run the cache check across all files and return the result."""
         for file_str in file_list:
             self._process_file(file_str)
         return _SymbolCacheResult(

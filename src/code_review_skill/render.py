@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import NamedTuple
 
 from code_review_skill.types import (
     CacheFile,
@@ -54,6 +55,13 @@ def _annotate_source(
     return "\n".join(out)
 
 
+class _HeaderInfo(NamedTuple):
+    header: str
+    file_path: str
+    start: int
+    end: int
+
+
 class ReportRenderer:
     """Render actionable findings as annotated source for curator review.
 
@@ -93,16 +101,16 @@ class ReportRenderer:
 
         self.out.append("")
 
-    def _build_header(self, target: TargetDescriptor) -> tuple[str, str, int, int]:
+    def _build_header(self, target: TargetDescriptor) -> _HeaderInfo:
         match target["type"]:
             case "symbol":
                 file_path = target["file"]
                 start, end = target["lines"]
-                return f"### {target['symbol']}  {file_path}:{start}-{end}", file_path, start, end
+                return _HeaderInfo(f"### {target['symbol']}  {file_path}:{start}-{end}", file_path, start, end)
             case "file":
-                return f"### File: {target['file']}", target["file"], 1, 0
+                return _HeaderInfo(f"### File: {target['file']}", target["file"], 1, 0)
             case _:
-                return "### Changeset", "", 0, 0
+                return _HeaderInfo("### Changeset", "", 0, 0)
 
     def _render_annotated_source(self, file_path: str, start: int, end: int, failed_checks: list[CheckResult]) -> None:
         if file_path not in self.source_cache:
