@@ -1,0 +1,89 @@
+{
+  "name": "code-review-lens",
+  "displayName": "Code Review Lens",
+  "description": "Rich code review findings viewer with tree view, CodeLens, gutter icons, and dashboard",
+  "version": "0.1.0",
+  "publisher": "timo",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Linters"],
+  "activationEvents": [
+    "workspaceContains:.claude/review/cache.json",
+    "workspaceContains:.claude/review/checklist.yaml"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeReviewLens.refresh",
+        "title": "Code Review Lens: Refresh"
+      },
+      {
+        "command": "codeReviewLens.clear",
+        "title": "Code Review Lens: Clear"
+      },
+      {
+        "command": "codeReviewLens.openDashboard",
+        "title": "Code Review Lens: Open Dashboard"
+      },
+      {
+        "command": "codeReviewLens.openResult",
+        "title": "Code Review Lens: Open cache.json"
+      },
+      {
+        "command": "codeReviewLens.filterBySeverity",
+        "title": "Code Review Lens: Filter by Severity"
+      },
+      {
+        "command": "codeReviewLens.filterByCategory",
+        "title": "Code Review Lens: Filter by Category"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "code-review-lens",
+          "title": "Code Review",
+          "icon": "media/icons/review-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "code-review-lens": [
+        {
+          "id": "codeReviewFindings",
+          "name": "Findings"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codeReviewLens.refresh",
+          "when": "view == codeReviewFindings",
+          "group": "navigation"
+        },
+        {
+          "command": "codeReviewLens.filterBySeverity",
+          "when": "view == codeReviewFindings",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "lint": "eslint src/",
+    "test": "node --import tsx --test test/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0",
+    "tsx": "^4.7.0"
+  }
+}

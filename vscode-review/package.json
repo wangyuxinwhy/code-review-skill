@@ -1,0 +1,45 @@
+{
+  "name": "claude-review-viewer",
+  "displayName": "Claude Review Viewer",
+  "description": "View Claude Code review findings as inline diagnostics",
+  "version": "0.1.0",
+  "publisher": "timo",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Linters"],
+  "activationEvents": [
+    "workspaceContains:.claude/review/cache.json",
+    "workspaceContains:.claude/review/checklist.yaml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeReview.refresh",
+        "title": "Claude Review: Refresh"
+      },
+      {
+        "command": "claudeReview.clear",
+        "title": "Claude Review: Clear"
+      },
+      {
+        "command": "claudeReview.openResult",
+        "title": "Claude Review: Open Result"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src/",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "tsx": "^4.7.0"
+  }
+}
